@@ -1,0 +1,61 @@
+# ------------------------------------------------------------------
+# Bateria (BESS) — Familia 4 (nuevas tecnologias)
+# Sistema de ~50 MW / 200 MWh (4 horas). MUY flexible.
+#
+# Modelo v1: solo lado de VENTA (descarga). El presupuesto diario de energia
+# (energy_capacity = 200 MWh) se aplica con despacho greedy: se descarga
+# primero en los periodos de mayor precio hasta agotar los 200 MWh.
+# El lado de COMPRA/carga y las ordenes EXCLUSIVAS/VINCULADAS quedan para v2.
+# Valores ORIENTATIVOS: ajustar y citar fuente.
+# ------------------------------------------------------------------
+name: "Bateria 50 MW / 200 MWh"
+family: 4
+side: sell
+
+variable_cost: 5.0        # €/MWh — proxy de degradacion/coste de oportunidad
+startup_cost: 0.0         # € — sin coste de arranque
+technical_min: 0.0        # MWh — puede entregar cualquier nivel
+ramp_limit: null          # gradiente practicamente instantaneo
+energy_capacity: 200.0    # MWh/dia — presupuesto de descarga del ciclo (4 h x 50 MW)
+
+# Q̄_t: potencia de descarga maxima por hora, MWh. Longitud = 24.
+availability:
+  values: [50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50]
+
+# C_V=5 €/MWh: price_levels incluyen 5 (coste exacto) y valores altos para
+# la bateria aproveche los picos de precio (logica de arbitraje).
+# tf_levels=0 porque no hay coste de arranque.
+candidate_grid:
+  price_levels:        [0, 5, 10, 20, 40, 60, 80, 100]
+  mar_levels:          [0.0, 0.3, 0.5, 0.8, 1.0]
+  mav_fraction_levels: [0.0, 0.5, 0.8, 1.0]
+  tf_levels:           [0]
+
+# EXBO: dos formas alternativas de comprometer la descarga (bloque estrecho
+# en la punta de la tarde-noche vs bloque amplio). Casa como maximo una.
+exbo_groups:
+  - group_id: "bateria_shape_choice"
+    blocks:
+      - id: "evening_peak_block"
+        price_levels: [0, 20, 40, 60]
+        availability:
+          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 50, 50, 0, 0, 0]
+      - id: "broad_block"
+        price_levels: [0, 20, 40, 60]
+        availability:
+          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 50, 50, 50, 0, 0, 0, 0]
+
+# LSBO: descarga base (padre) + paquete adicional opcional en la hora de
+# mayor precio esperado (hijo), que solo entra si es rentable por si mismo.
+lsbo_families:
+  - family_id: "bateria_base_plus_peak"
+    parent:
+      id: "base"
+      price_levels: [0, 20, 40]
+      availability:
+        values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 50, 0, 0, 0, 0]
+    children:
+      - id: "extra_evening"
+        price_levels: [0, 20, 40, 60]
+        availability:
+          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 0, 0, 0]

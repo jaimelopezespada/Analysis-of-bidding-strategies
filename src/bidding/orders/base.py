@@ -6,13 +6,12 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from ..config import CandidateGrid, ObjectiveWeights, TechnologyConfig
+from ..config import CandidateGrid, RiskObjective, TechnologyConfig
 
 
 class OrderStrategy(ABC):
     """
-    Each concrete subclass models one EUPHEMIA product (Simple, SCO, SBO, …).
-    Adding EXBO/LSBO in v2 means adding new subclasses here.
+    Each concrete subclass models one EUPHEMIA product (Simple, SCO, SBO, EXBO, LSBO).
     """
 
     @property
@@ -26,13 +25,19 @@ class OrderStrategy(ABC):
         self,
         tech: TechnologyConfig,
         lambda_matrix: np.ndarray,  # shape (S, T)
+        avail_matrix: np.ndarray,   # shape (S, T) — Q_bar_t^s, scenario-varying
         probs: np.ndarray,          # shape (S,)
         grid: CandidateGrid,
-        weights: ObjectiveWeights,
+        objective: RiskObjective,
         cvar_alpha: float,
+        startup_per_transition: bool = False,
     ) -> dict:
         """
         Enumerate the candidate grid and return the best combination.
+
+        ``startup_per_transition``: charge one startup per zero→production
+        transition instead of a single daily startup. Only simple orders can
+        restart within the day, so the other strategies accept and ignore it.
 
         Returns a dict containing:
             order_type          str
@@ -44,5 +49,6 @@ class OrderStrategy(ABC):
             cvar                float
             match_probability   float
             expected_matched_energy float
+            expected_profit_per_mw float  – E[Π] / installed capacity (€/MW)
         """
         ...

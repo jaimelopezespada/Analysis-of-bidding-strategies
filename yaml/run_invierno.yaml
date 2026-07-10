@@ -1,0 +1,32 @@
+# ------------------------------------------------------------------
+# Configuracion de ejecucion — tramo INVIERNO 2025-2026 (datos reales OMIE/ESIOS)
+# ------------------------------------------------------------------
+
+mode: stochastic          # deterministic | stochastic
+resolution: 24            # 24 (horario) | 96 (cuartohorario)
+
+order_types: [simple, sco, sbo, exbo, lsbo]
+
+prices:
+  csv_path: data/precios_omie_2025-12-01_2026-02-28_hour.csv
+  scenario_mode: per_day
+  renewable_csv_path: data/generacion_renovable_2025-12-01_2026-02-28_hour.csv
+
+objective:
+  beta: 0.0               # max (1-beta)*E[Pi] + beta*CVaR_alpha
+
+cvar_alpha: 0.95
+
+candidate_grid:
+  price_levels:        [0, 1, 5, 10, 20, 40, 60, 80]   # €/MWh
+  mar_levels:          [0.0, 0.3, 0.5, 0.8, 1.0]       # SBO
+  mav_fraction_levels: [0.0, 0.5, 0.8, 1.0]            # SCO: MAV como fraccion de Q̂_t
+  tf_levels:           [0, 50, 100, 200, 500]           # SCO: termino fijo €
+
+output_dir: results
+season: invierno          # namespaces results/invierno/<tecnologia>/ para no chocar con verano
+seed: 42
+
+# Cobrar un arranque por cada transicion cero->produccion en vez de uno solo
+# al dia (solo afecta a ofertas simples; los bloques son contiguos).
+startup_per_transition: true

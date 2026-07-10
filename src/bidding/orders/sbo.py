@@ -6,8 +6,9 @@ import itertools
 
 import numpy as np
 
-from ..config import CandidateGrid, ObjectiveWeights, TechnologyConfig
+from ..config import CandidateGrid, RiskObjective, TechnologyConfig
 from ..metrics import compute_metrics, objective_value
+from ..optimizer import validate_block_profile
 from .base import OrderStrategy
 from .simple import _apply_energy_cap
 
@@ -23,6 +24,12 @@ class SBOStrategy(OrderStrategy):
     In the price-taker model the block always dispatches at x^s = 1 when
     accepted, so MAR only acts as a market-side minimum guarantee.
 
+    The block's Q̂_t profile is declared data, not a per-scenario decision
+    (fill-or-kill on the whole declared profile) — so unlike SCO, there is no
+    intra-day dispatch freedom to solve for, and technical_min/ramp reduce to
+    a static validity check on the declared profile itself (see
+    optimizer.validate_block_profile), not a MILP.
+
     The grid (P^B × MAR) is enumerated; the combination maximising the
     weighted objective is returned.
     """
@@ -31,20 +38,24 @@ class SBOStrategy(OrderStrategy):
 
     def evaluate(
         self,
-        tech: TechnologyConfig, 
+        tech: TechnologyConfig,
         lambda_matrix: np.ndarray,
+        avail_matrix: np.ndarray,
         probs: np.ndarray,
         grid: CandidateGrid,
-        weights: ObjectiveWeights,
+        objective: RiskObjective,
         cvar_alpha: float,
+        startup_per_transition: bool = False,  # unused: SBO dispatches one contiguous block
     ) -> dict:
         S, T = lambda_matrix.shape
-        avail = np.asarray(tech.availability.values, dtype=float)
+        avail = avail_matrix  # (S, T)
+        validate_block_profile(tech, avail)
         cost = np.asarray(tech.cost_array(T), dtype=float)
         margin = lambda_matrix - cost[None, :]  # (S, T)
 
-        # Pre-compute Σ_t λ_t^s · Q̂_t for all scenarios (reused in welfare)
-        revenue_s = lambda_matrix @ avail  # (S,)  = Σ_t λ_t^s · Q̂_t
+        # Pre-compute Σ_t λ_t^s · Q̂_t^s and Σ_t Q̂_t^s per scenario (reused in welfare)
+        revenue_s = np.sum(lambda_matrix * avail, axis=1)  # (S,) = Σ_t λ_t^s · Q̂_t^s
+        avail_sum_s = avail.sum(axis=1)                    # (S,) = Σ_t Q̂_t^s
 
         price_levels = grid.price_levels
         mar_levels = grid.mar_levels
@@ -55,11 +66,11 @@ class SBOStrategy(OrderStrategy):
         for pb, mar in itertools.product(price_levels, mar_levels):
             pb_f = float(pb)
 
-            # welfare^s = Σ_t (λ_t^s − P^B) · Q̂_t
-            welfare = revenue_s - pb_f * avail.sum()  # (S,)
+            # welfare^s = Σ_t (λ_t^s − P^B) · Q̂_t^s
+            welfare = revenue_s - pb_f * avail_sum_s  # (S,)
 
             u = (welfare >= 0.0).astype(float)        # (S,)
-            q = u[:, None] * avail[None, :]           # (S, T)
+            q = u[:, None] * avail                    # (S, T)
 
             if tech.energy_capacity is not None:
                 q = _apply_energy_cap(q, lambda_matrix, avail, tech.energy_capacity)
@@ -70,10 +81,10 @@ class SBOStrategy(OrderStrategy):
 
             matched_s = u
 
-            obj = objective_value(profits_s, probs, matched_s, cvar_alpha, weights)
+            obj = objective_value(profits_s, probs, cvar_alpha, objective)
             if obj > best_obj:
                 best_obj = obj
-                m = compute_metrics(profits_s, probs, matched_s, q, cvar_alpha)
+                m = compute_metrics(profits_s, probs, matched_s, q, cvar_alpha, tech.installed_capacity_mw)
                 best_result = {
                     "order_type": self.order_type,
                     "optimal_params": {

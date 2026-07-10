@@ -1,0 +1,70 @@
+# ------------------------------------------------------------------
+# Hidraulica de embalse — Familia 2 (programable, coste bajo) pero MUY
+# flexible (extremo opuesto a la nuclear dentro de F2). Unidad de ~200 MW.
+# El coste variable es un PROXY del valor del agua (coste de oportunidad,
+# no observable directamente) — limitacion documentada aqui y en la memoria.
+# El volumen embalsado diario se aproxima con energy_capacity (igual que la
+# bateria): v1 no modela el estado del embalse entre dias.
+# Valores ORIENTATIVOS: ajustar y citar fuente en la memoria.
+# ------------------------------------------------------------------
+name: "Hidraulica embalse 200 MW"
+family: 2
+side: sell
+
+variable_cost: 8.0        # €/MWh — proxy del valor del agua (coste de oportunidad, no observable)
+startup_cost: 500.0       # € — arranque rapido y barato (contraste frente a nuclear: 300 000 €)
+technical_min: 30.0       # MWh — ~15% de la capacidad (caudal ecologico minimo)
+ramp_limit: 120.0         # MWh/hora — muy flexible (~60% de la capacidad/hora); solo caracterizacion cualitativa, NO se aplica (ver optimizer.py)
+enforce_technical_constraints: true  # activa el minimo tecnico como restriccion real del MILP
+energy_capacity: 2000.0   # MWh/dia — proxy del volumen embalsado gestionable (10 h-turbina equivalentes)
+
+# Q̄_t: capacidad disponible cada hora (el volumen diario, no la potencia
+# horaria, es lo que realmente limita -> ver energy_capacity). Longitud = 24.
+availability:
+  values: [200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200]
+
+# price_levels centrados bajo (coste variable=8). No hay SCO para Familia 2
+# (ver tabla de mapeo), tf_levels se mantiene por completitud del esquema.
+# mar_levels/mav_fraction_levels: technical_min=30 sobre 200 MW de capacidad
+# (caudal ecologico) -> floor = 30/200 = 0.15. La planta solo despacha 0 o
+# >= 30 MW, nunca un valor intermedio, asi que ningun nivel puede caer por
+# debajo de 0.15 (ni siquiera 0.0: ver TechnologyConfig.effective_grid).
+candidate_grid:
+  price_levels:        [0, 5, 8, 10, 15, 20, 30]
+  mar_levels:          [0.15, 0.3, 0.5, 0.8, 1.0]
+  mav_fraction_levels: [0.15, 0.5, 0.8, 1.0]
+  tf_levels:           [0]
+
+# EXBO: dos formas alternativas y mutuamente excluyentes de comprometer la
+# turbinacion diaria (casa como maximo una) — turbinar fuerte y concentrado
+# en la punta de tarde-noche frente a turbinar mas moderado mas horas del
+# dia. Ambas caben en el presupuesto energy_capacity=2000 MWh/dia.
+exbo_groups:
+  - group_id: "hidraulica_shape_choice"
+    blocks:
+      - id: "evening_peak_block"
+        price_levels: [0, 5, 10, 15]
+        availability:
+          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 200, 200, 200, 200, 0, 0]
+      - id: "broad_block"
+        price_levels: [0, 5, 8, 10]
+        availability:
+          values: [0, 0, 0, 0, 0, 0, 0, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 0]
+
+# LSBO. A diferencia de la nuclear, aqui el padre/hijo no viene dado por el
+# minimo tecnico (muy bajo, 30 MW) sino por optionalidad economica: programa
+# base moderado todo el dia (padre) + paquete adicional turbinando mas
+# fuerte solo en las horas de mayor precio esperado (hijo), aprovechando su
+# flexibilidad.
+lsbo_families:
+  - family_id: "hidraulica_base_plus_punta"
+    parent:
+      id: "base"
+      price_levels: [0, 5, 8, 10]
+      availability:
+        values: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100]
+    children:
+      - id: "extra_punta"
+        price_levels: [0, 5, 10, 15, 20]
+        availability:
+          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 100, 100, 100, 0, 0]

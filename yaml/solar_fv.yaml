@@ -1,0 +1,67 @@
+# ------------------------------------------------------------------
+# Solar fotovoltaica — Familia 1 (no programable, coste bajo)
+# Planta de ~100 MW. Perfil de un dia despejado.
+# Valores ORIENTATIVOS: ajustar y citar fuente en la memoria.
+# ------------------------------------------------------------------
+name: "Solar FV 100 MW"
+family: 1
+side: sell
+
+variable_cost: 0.0        # €/MWh — combustible nulo (solo O&M, despreciable)
+startup_cost: 0.0         # € — sin coste de arranque
+technical_min: 0.0        # MWh — sin minimo tecnico
+ramp_limit: null          # sin limite de gradiente
+
+# Q̄_t^s: disponibilidad por escenario/dia, escalada proporcionalmente desde la
+# generacion solar real (ESIOS) del run (ver prices.renewable_csv_path), para
+# preservar la correlacion precio-recurso del mismo dia historico. La generacion
+# nacional se escala a la capacidad nominal de esta planta usando el maximo
+# nacional observado en la ventana de estudio como proxy de capacidad instalada
+# efectiva (aproximacion documentada en la memoria).
+# "values" se mantiene solo como perfil de respaldo para el modo determinista
+# si no se dispone del CSV de generacion (perfil de campana ilustrativo).
+availability:
+  source: renewable_csv
+  resource: solar
+  nameplate_capacity_mw: 100.0
+  values: [0, 0, 0, 0, 0, 0, 3, 12, 30, 52, 72, 88, 95, 92, 80, 62, 40, 18, 5, 0, 0, 0, 0, 0]
+
+# Grid centrado en C_V=0: queremos ofertar cerca de 0 para maximizar horas casadas.
+# tf_levels=0 porque no hay coste de arranque.
+candidate_grid:
+  price_levels:        [-10, -1, 0, 1, 2, 5, 10, 20]
+  mar_levels:          [0.0, 0.3, 0.5, 0.8, 1.0]
+  mav_fraction_levels: [0.0, 0.5, 0.8, 1.0]
+  tf_levels:           [0]
+
+# EXBO: dos perfiles de bloque alternativos y mutuamente excluyentes (el
+# agente declara dos formas posibles de comprometer la planta; casa como
+# maximo una). Los perfiles de bloque son datos declarados (estaticos), no
+# se conectan al CSV de generacion real (ver limitacion en optimizer.py).
+exbo_groups:
+  - group_id: "solar_shape_choice"
+    blocks:
+      - id: "peak_block"          # solo horas centrales de mayor irradiancia
+        price_levels: [-10, -1, 0, 1, 2, 5]
+        availability:
+          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 72, 88, 95, 92, 80, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      - id: "broad_block"         # toda la ventana de luz solar
+        price_levels: [-10, -1, 0, 1, 2, 5]
+        availability:
+          values: [0, 0, 0, 0, 0, 0, 3, 12, 30, 52, 72, 88, 95, 92, 80, 62, 40, 18, 5, 0, 0, 0, 0, 0]
+
+# LSBO: programa minimo (padre, ventana amplia) + paquete adicional opcional
+# de potencia en las horas de mayor irradiancia (hijo), que solo entra si es
+# rentable por si mismo.
+lsbo_families:
+  - family_id: "solar_base_plus_peak"
+    parent:
+      id: "base"
+      price_levels: [-10, -1, 0, 1, 2, 5]
+      availability:
+        values: [0, 0, 0, 0, 0, 0, 3, 12, 30, 52, 72, 88, 95, 92, 80, 62, 40, 18, 5, 0, 0, 0, 0, 0]
+    children:
+      - id: "extra_peak"
+        price_levels: [-10, -1, 0, 1, 2, 5]
+        availability:
+          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 20, 20, 20, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0]
