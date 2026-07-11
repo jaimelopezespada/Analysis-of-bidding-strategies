@@ -9,60 +9,59 @@ name: "Nuclear 1000 MW"
 family: 2
 side: sell
 
-variable_cost: 12.0       # €/MWh — combustible muy barato
-startup_cost: 300000.0    # € — arranque carisimo (penaliza apagar/encender) 
-technical_min: 950.0      # MWh — opera cerca de plena carga (muy inflexible)
-ramp_limit: 50.0          # MWh/hora — solo caracterizacion cualitativa, NO se aplica (ver optimizer.py: la nueva tipologia SDAC no tiene condicion de rampa en ningun producto)
+variable_cost: 15.0       # €/MWh — combustible muy barato
+startup_cost: 500000.0    # € — arranque carisimo (penaliza apagar/encender) 
+technical_min: 500.0      # MWh — opera mitad de plena carga (muy inflexible)
 enforce_technical_constraints: true  # activa el minimo tecnico como restriccion real del MILP
 
 # Q̄_t: capacidad disponible cada hora. Longitud = 24.
 availability:
   values: [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000]
 
-# C_V=12 €/MWh, C_SU=300 000 €.
-# price_levels: alrededor del coste variable (12). Nuclear casi siempre oferta
+# C_V=15 €/MWh, C_SU=500 000 €.
+# price_levels: alrededor del coste variable (15). Nuclear casi siempre oferta
 # a precio bajo para asegurar despacho (must-run), pero no a 0 para no perder.
-# tf_levels: en torno al coste de arranque (300 000 €). Nuclear raramente apaga,
+# tf_levels: en torno al coste de arranque (500 000 €). Nuclear raramente apaga,
 # pero si lo hace necesita cubrir ese coste enorme.
-# mar_levels/mav_fraction_levels: technical_min=950 sobre 1000 MW de capacidad
-# -> floor = 950/1000 = 0.95. La planta solo despacha 0 o >= 950 MW, nunca un
+# mar_levels/mav_fraction_levels: technical_min=500 sobre 1000 MW de capacidad
+# -> floor = 500/1000 = 0.5. La planta solo despacha 0 o >= 500 MW, nunca un
 # valor intermedio, asi que ningun nivel puede caer por debajo de 0.95 (ni
 # siquiera 0.0: ver TechnologyConfig.effective_grid).
 candidate_grid:
-  price_levels:        [0, 5, 10, 12, 15, 20, 30]
-  mar_levels:          [0.95, 0.97, 1.0]
-  mav_fraction_levels: [0.95, 1.0]
-  tf_levels:           [0, 100000, 200000, 300000, 500000, 1000000]
+  price_levels:        [0, 5, 8, 10, 12, 14, 16, 18, 20, 25, 30]
+  mar_levels:          [0.5, 0.55, 0.6, 0.7]
+  mav_fraction_levels: [0.5, 0.55, 0.6, 0.7]
+  tf_levels:           [0, 200000, 300000, 400000, 450000, 500000, 550000, 1000000]
 
 # EXBO: dos niveles de compromiso mutuamente excluyentes (casa como maximo
-# uno) — quedarse en el minimo tecnico (950 MW, mas facil de casar) frente a
+# uno) — quedarse en el minimo tecnico (500 MW, mas facil de casar) frente a
 # comprometerse a plena carga (1000 MW). Alternativa discreta, distinta de la
 # LSBO de abajo (que es aditiva: base + paquete opcional).
 exbo_groups:
   - group_id: "nuclear_commitment_choice"
     blocks:
       - id: "minimo_tecnico_block"
-        price_levels: [0, 5, 10, 12]
+        price_levels: [0, 5, 10, 14, 15, 16, 20]
         availability:
-          values: [950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950]
+          values: [500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500]
       - id: "plena_carga_block"
-        price_levels: [10, 12, 15, 20]
+        price_levels: [0, 5, 10, 14, 15, 16, 20]
         availability:
           values: [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000]
 
-# LSBO. El padre es el propio minimo tecnico (950 MW, "programa minimo"
+# LSBO. El padre es el propio minimo tecnico (500 MW, "programa minimo"
 # imprescindible para casar) y el hijo es la capacidad restante hasta plena
-# carga (50 MW, paquete adicional y opcional), reflejando directamente
+# carga (500 MW, paquete adicional y opcional), reflejando directamente
 # technical_min.
 lsbo_families:
   - family_id: "nuclear_base_plus_full"
     parent:
       id: "base_minimo_tecnico"
-      price_levels: [0, 5, 10, 12, 15]
+      price_levels: [0, 5, 10, 14, 15, 16, 20]
       availability:
-        values: [950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950, 950]
+        values: [500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500]
     children:
       - id: "extra_plena_carga"
-        price_levels: [0, 5, 10, 12, 15, 20]
+        price_levels: [0, 5, 10, 14, 15, 16, 20]
         availability:
-          values: [50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50]
+          values: [500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500]

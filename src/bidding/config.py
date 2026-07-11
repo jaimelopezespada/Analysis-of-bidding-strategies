@@ -181,6 +181,15 @@ class RunConfig(BaseModel):
     cvar_alpha: float = Field(default=0.95, ge=0.0, le=1.0)
     candidate_grid: CandidateGrid = Field(default_factory=CandidateGrid)
     output_dir: str = "results"
+    # SCO clearing model:
+    #   "aware" (default) — the MILP that decides acceptance/dispatch maximises
+    #   the *declared* surplus sum_t (lambda_t - P^V)*q_t, exactly what
+    #   EUPHEMIA sees (P^V, TF, MAV); the generator's private costs (C, C^SU)
+    #   only enter afterwards when computing realised profit per scenario.
+    #   "naive" — legacy model: the MILP maximises the real profit (with C and
+    #   C^SU), i.e. the market is assumed to clear with perfect knowledge of
+    #   private costs. Kept as an upper-bound benchmark.
+    sco_model: Literal["naive", "aware"] = "aware"
     # Optional label (e.g. "verano", "invierno") namespacing results/ so two
     # run configs sharing the same output_dir don't overwrite each other's
     # ranking.csv/figs when run against the same technology.

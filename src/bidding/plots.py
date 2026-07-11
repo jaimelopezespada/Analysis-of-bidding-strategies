@@ -18,13 +18,14 @@ def plot_all(
     lambda_matrix: np.ndarray,
     output_dir: Path,
     tech_name: str = "",
+    capacity_mw: float | None = None,
 ) -> None:
     figs_dir = output_dir / "figs"
     figs_dir.mkdir(parents=True, exist_ok=True)
 
     plot_expected_profit_bars(results, figs_dir, tech_name)
     plot_profit_distribution(results, figs_dir, tech_name)
-    plot_offer_vs_price(results, lambda_matrix, figs_dir, tech_name)
+    plot_offer_vs_price(results, lambda_matrix, figs_dir, tech_name, capacity_mw)
     plot_dispatch_profiles(results, figs_dir, tech_name)
 
     plt.close("all")
@@ -113,6 +114,7 @@ def plot_offer_vs_price(
     lambda_matrix: np.ndarray,
     out: Path,
     tech_name: str,
+    capacity_mw: float | None = None,
 ) -> None:
     T = lambda_matrix.shape[1]
     mean_price = lambda_matrix.mean(axis=0)
@@ -131,8 +133,12 @@ def plot_offer_vs_price(
                     label=f"SIMPLE P^V_t (por periodo)")
         elif otype == "sco":
             pv = params["price_variable"]
+            if capacity_mw is not None:
+                mav_label = f"MAV = {params['mav_fraction'] * capacity_mw:.1f} MW"
+            else:
+                mav_label = f"MAV = {params['mav_fraction']:.1%}"
             ax.axhline(pv, color=color, linewidth=1.8,
-                       label=f"SCO  P^V = {pv:.1f} €/MWh  |  TF = {params['fixed_term']:.0f} €  |  MAV = {params['mav_fraction']:.1%}")
+                       label=f"SCO  P^V = {pv:.1f} €/MWh  |  TF = {params['fixed_term']:.0f} €  |  {mav_label}")
         elif otype == "sbo":
             pb = params["block_price"]
             ax.axhline(pb, color=color, linewidth=1.8, linestyle="-.",

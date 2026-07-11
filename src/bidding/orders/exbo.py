@@ -40,6 +40,7 @@ class EXBOStrategy(OrderStrategy):
         objective: RiskObjective,
         cvar_alpha: float,
         startup_per_transition: bool = False,  # unused: at most one block matches per day
+        sco_model: str = "aware",  # unused: only SCO has a solver-based clearing model
     ) -> dict:
         if not tech.exbo_groups:
             raise ValueError(

@@ -46,6 +46,7 @@ class SBOStrategy(OrderStrategy):
         objective: RiskObjective,
         cvar_alpha: float,
         startup_per_transition: bool = False,  # unused: SBO dispatches one contiguous block
+        sco_model: str = "aware",  # unused: only SCO has a solver-based clearing model
     ) -> dict:
         S, T = lambda_matrix.shape
         avail = avail_matrix  # (S, T)

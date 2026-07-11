@@ -5,6 +5,30 @@ from zoneinfo import ZoneInfo
 
 MADRID_TZ = ZoneInfo('Europe/Madrid')
 
+
+def normalizar_dias_dst(df, columnas_valor, periodos_dia):
+    """Deja todos los dias con exactamente `periodos_dia` periodos.
+
+    En el cambio de hora de octubre el dia local tiene 25 horas (la hora
+    02:00 ocurre dos veces): se promedia la hora repetida. En el de marzo
+    tiene 23 (las 02:00 no existen): se rellena por interpolacion lineal.
+    Necesario porque el pipeline (src/bidding/prices.py) exige el mismo
+    numero de periodos en todos los dias.
+    """
+    agg = {c: 'mean' for c in columnas_valor}
+    if 'date_aware' in df.columns:
+        agg['date_aware'] = 'first'
+    df = df.groupby(['date', 'period'], as_index=False).agg(agg)
+
+    completo = pd.MultiIndex.from_product(
+        [df['date'].unique(), range(1, periodos_dia + 1)],
+        names=['date', 'period'],
+    )
+    df = df.set_index(['date', 'period']).reindex(completo)
+    for c in columnas_valor:
+        df[c] = df[c].interpolate(limit=4).round(2)
+    return df.reset_index()
+
 def obtener_precios_mercado_diario(api_key, start_date, end_date, resolucion):
     """
     Obtiene los precios horarios del mercado diario (OMIE) desde ESIOS.
@@ -82,8 +106,11 @@ def obtener_precios_mercado_diario(api_key, start_date, end_date, resolucion):
             elif 'geo_name' in df.columns:
                 df = df[df['geo_name'] == 'España']
 
-            # Limpieza y formateo del DataFrame
-            df['datetime'] = pd.to_datetime(df['datetime'])
+            # Limpieza y formateo del DataFrame. utc=True es imprescindible
+            # en rangos que cruzan el cambio de hora (oct/mar): la respuesta
+            # mezcla offsets +02:00 y +01:00 y sin ello pandas devuelve una
+            # columna object con la que .dt.tz_convert falla.
+            df['datetime'] = pd.to_datetime(df['datetime'], utc=True)
 
             # Convertir a la zona horaria de Madrid
             df['datetime'] = df['datetime'].dt.tz_convert('Europe/Madrid')
@@ -93,11 +120,14 @@ def obtener_precios_mercado_diario(api_key, start_date, end_date, resolucion):
             # minutos (ver comentario más arriba), promediamos aquí los
             # cuartos de cada hora en vez de dejar que ESIOS los sume.
             if resolucion == 'hour' and api_resolucion == 'minutes15':
-                df = (
-                    df.groupby(df['datetime'].dt.floor('h'))['value']
-                    .mean()
-                    .reset_index()
+                # El floor se hace en UTC porque sobre hora local falla en
+                # el cambio horario de octubre (las 02:00 son ambiguas).
+                hora = (
+                    df['datetime'].dt.tz_convert('UTC')
+                    .dt.floor('h')
+                    .dt.tz_convert(MADRID_TZ)
                 )
+                df = df.groupby(hora)['value'].mean().reset_index()
 
             # Formato final: date, period (hora 1-24), time_aware (datetime con tz) y price (EUR/MWh)
             df_final = pd.DataFrame({
@@ -107,6 +137,10 @@ def obtener_precios_mercado_diario(api_key, start_date, end_date, resolucion):
                 'price': df['value'].round(2),
             })
             df_final.reset_index(drop=True, inplace=True)
+
+            if resolucion in ('hour', 'minutes15'):
+                periodos_dia = 24 if resolucion == 'hour' else 96
+                df_final = normalizar_dias_dst(df_final, ['price'], periodos_dia)
 
             return df_final
         else:
@@ -123,8 +157,8 @@ if __name__ == "__main__":
     MI_TOKEN_ESIOS = "3c43bf8c3fe7eba0eb28b662437605b10c81910b1502e346f597627fa8d54557"
     
     # Definir el periodo temporal en hora local de Madrid (días completos: 00:00 a 23:59)
-    fecha_inicio = datetime(2025, 6, 1, 0, 0)
-    fecha_fin = datetime(2025, 8, 31, 23, 59)
+    fecha_inicio = datetime(2025, 8, 1, 0, 0)
+    fecha_fin = datetime(2025, 10, 31, 23, 59)
 
     # fecha_inicio = datetime(2025, 12, 1, 0, 0)
     # fecha_fin = datetime(2026, 2, 28, 23, 59)

@@ -31,6 +31,7 @@ class OrderStrategy(ABC):
         objective: RiskObjective,
         cvar_alpha: float,
         startup_per_transition: bool = False,
+        sco_model: str = "aware",
     ) -> dict:
         """
         Enumerate the candidate grid and return the best combination.
@@ -38,6 +39,10 @@ class OrderStrategy(ABC):
         ``startup_per_transition``: charge one startup per zero→production
         transition instead of a single daily startup. Only simple orders can
         restart within the day, so the other strategies accept and ignore it.
+
+        ``sco_model``: which SCO clearing model to use ("aware" = declared
+        surplus, "naive" = legacy real-profit benchmark; see optimizer.py).
+        Only the SCO strategy uses it; the others accept and ignore it.
 
         Returns a dict containing:
             order_type          str

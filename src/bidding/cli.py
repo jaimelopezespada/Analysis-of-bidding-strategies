@@ -113,6 +113,7 @@ def evaluate_technology(tech: TechnologyConfig, cfg: RunConfig):
             objective=cfg.objective,
             cvar_alpha=cfg.cvar_alpha,
             startup_per_transition=cfg.startup_per_transition,
+            sco_model=cfg.sco_model,
         )
         result["objective_value"] = objective_value(
             result["profits"], probs, cfg.cvar_alpha, cfg.objective
@@ -128,6 +129,7 @@ def run_command(
     run_path: str,
     mode_override: str | None = None,
     startup_override: bool | None = None,
+    sco_model_override: str | None = None,
     exit_on_error: bool = True,
 ) -> None:
     _ensure_utf8_stdout()
@@ -138,6 +140,8 @@ def run_command(
         cfg = cfg.model_copy(update={"mode": mode_override})
     if startup_override is not None:
         cfg = cfg.model_copy(update={"startup_per_transition": startup_override})
+    if sco_model_override:
+        cfg = cfg.model_copy(update={"sco_model": sco_model_override})
 
     np.random.seed(cfg.seed)
 
@@ -156,6 +160,8 @@ def run_command(
     print(f"  Tecnología : {tech.name}")
     print(f"  Modo       : {cfg.mode}  |  Resolución : {cfg.resolution} MTU")
     print(f"  Escenarios : {S}  |  Tipos de orden : {', '.join(cfg.order_types)}")
+    if "sco" in cfg.order_types:
+        print(f"  Modelo SCO : {cfg.sco_model}")
     if cfg.startup_per_transition:
         print("  Arranques  : uno por cada transición cero→producción")
     print(sep)
@@ -180,6 +186,7 @@ def run_command(
             objective=cfg.objective,
             cvar_alpha=cfg.cvar_alpha,
             startup_per_transition=cfg.startup_per_transition,
+            sco_model=cfg.sco_model,
         )
         result["objective_value"] = objective_value(
             result["profits"], probs, cfg.cvar_alpha, cfg.objective
@@ -217,7 +224,8 @@ def run_command(
     print(f"  Ranking guardado en : {ranking_path}")
 
     try:
-        plot_all(results, lambda_matrix, output_dir, tech_name=tech.name)
+        plot_all(results, lambda_matrix, output_dir, tech_name=tech.name,
+                 capacity_mw=tech.installed_capacity_mw)
         print(f"  Gráficas en        : {output_dir / 'figs'}")
     except Exception as exc:
         print(f"  [WARN] Gráficas no generadas: {exc}", file=sys.stderr)
@@ -230,6 +238,7 @@ def run_command(
             sweep_beta(
                 tech, lambda_matrix, avail_matrix, probs, grid, cfg.cvar_alpha,
                 ot, cfg.beta_sweep, startup_per_transition=cfg.startup_per_transition,
+                sco_model=cfg.sco_model,
             )
             for ot in cfg.order_types
             if ot in STRATEGIES
@@ -274,6 +283,10 @@ def main() -> None:
                        default=None,
                        help="Sobreescribe startup_per_transition del run YAML: cobra un "
                             "arranque por cada transición cero→producción (solo ofertas simples)")
+    run_p.add_argument("--sco-model", choices=["naive", "aware"], default=None,
+                       help="Sobreescribe sco_model del run YAML: 'aware' (casación con "
+                            "el excedente declarado, como Euphemia) o 'naive' (casación "
+                            "con el beneficio real — cota de conocimiento perfecto)")
 
     family_p = sub.add_parser("family", help="Evaluar todas las tecnologias de una familia")
     family_p.add_argument("--family-num", required=True,
@@ -287,6 +300,21 @@ def main() -> None:
                           help="Run YAML de invierno (requerido si se usa --run-verano)")
     family_p.add_argument("--yaml-dir", default="yaml",
                           help="Directorio con los YAML de tecnologia (por defecto: yaml/)")
+
+    oos_p = sub.add_parser(
+        "validate-oos",
+        help="Validacion out-of-sample de la SCO: optimiza theta* en train "
+             "(dias iniciales) y lo evalua mecanicamente en test (dias finales)",
+    )
+    oos_p.add_argument("--tech", required=True, metavar="YAML",
+                       help="Fichero YAML de tecnologia")
+    oos_p.add_argument("--run", required=True, metavar="YAML",
+                       help="Fichero YAML de ejecucion")
+    oos_p.add_argument("--train-fraction", type=float, default=0.7,
+                       help="Fraccion cronologica inicial de escenarios usada como train "
+                            "(por defecto: 0.7)")
+    oos_p.add_argument("--sco-model", choices=["naive", "aware"], default=None,
+                       help="Sobreescribe sco_model del run YAML")
 
     seasons_p = sub.add_parser(
         "compare-seasons", help="Comparar una tecnologia entre verano e invierno"
@@ -320,6 +348,7 @@ def main() -> None:
                         str(tech_path), str(run_path),
                         mode_override=args.mode,
                         startup_override=args.startup_per_transition,
+                        sco_model_override=args.sco_model,
                         exit_on_error=not batch,
                     )
                 except ValueError as exc:
@@ -334,6 +363,13 @@ def main() -> None:
             run_family_seasons(
                 args.family_num, args.run_verano, args.run_invierno, yaml_dir=args.yaml_dir
             )
+    elif args.command == "validate-oos":
+        from .validation import run_validate_oos
+        run_validate_oos(
+            args.tech, args.run,
+            train_fraction=args.train_fraction,
+            sco_model_override=args.sco_model,
+        )
     elif args.command == "compare-seasons":
         from .seasons import run_compare_seasons
         run_compare_seasons(args.tech, args.run_verano, args.run_invierno)

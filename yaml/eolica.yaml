@@ -1,16 +1,14 @@
 # ------------------------------------------------------------------
 # Eolica — Familia 1 (no programable, coste bajo)
-# Parque de ~150 MW. Perfil con mas viento de noche/tarde.
-# Valores ORIENTATIVOS: ajustar y citar fuente en la memoria.
+# Parque de ~50 MW. Perfil con mas viento de noche/tarde.
 # ------------------------------------------------------------------
-name: "Eolica 150 MW"
+name: "Eolica 50 MW"
 family: 1
 side: sell
 
 variable_cost: 0.0        # €/MWh — combustible nulo
 startup_cost: 0.0         # € — sin coste de arranque
 technical_min: 0.0        # MWh — sin minimo tecnico
-ramp_limit: null          # sin limite de gradiente
 
 # Q̄_t^s: disponibilidad por escenario/dia desde generacion eolica real (ESIOS),
 # escalada proporcionalmente a la capacidad nominal (ver comentario en solar_fv.yaml).
@@ -18,12 +16,12 @@ ramp_limit: null          # sin limite de gradiente
 availability:
   source: renewable_csv
   resource: wind
-  nameplate_capacity_mw: 150.0
+  nameplate_capacity_mw: 50.0
   values: [88, 95, 100, 92, 80, 68, 58, 50, 44, 40, 42, 55, 68, 80, 95, 108, 115, 105, 92, 80, 85, 95, 100, 90]
 
 # Identico a solar: C_V=0, sin coste de arranque.
 candidate_grid:
-  price_levels:        [-10, -1, 0, 1, 2, 5, 10, 20]
+  price_levels:        [-10, -2, -1, 0, 1, 2, 5, 10, 20]
   mar_levels:          [0.0, 0.3, 0.5, 0.8, 1.0]
   mav_fraction_levels: [0.0, 0.5, 0.8, 1.0]
   tf_levels:           [0]
@@ -37,11 +35,11 @@ exbo_groups:
       - id: "night_evening_peak_block"    # horas de mayor viento: madrugada + tarde-noche
         price_levels: [-10, -1, 0, 1, 2, 5]
         availability:
-          values: [88, 95, 100, 92, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 108, 115, 105, 92, 80, 85, 95, 100, 90]
+          values: [29, 32, 33, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 36, 38, 35, 31, 27, 28, 32, 33, 30]
       - id: "broad_block"                 # todo el dia
         price_levels: [-10, -1, 0, 1, 2, 5]
         availability:
-          values: [88, 95, 100, 92, 80, 68, 58, 50, 44, 40, 42, 55, 68, 80, 95, 108, 115, 105, 92, 80, 85, 95, 100, 90]
+          values: [29, 32, 33, 31, 27, 23, 19, 17, 15, 13, 14, 18, 23, 27, 32, 36, 38, 35, 31, 27, 28, 32, 33, 30]
 
 # LSBO: programa base (padre, todo el dia) + paquete adicional opcional en
 # las horas de mayor viento (hijo), que solo entra si es rentable por si mismo.
@@ -51,9 +49,9 @@ lsbo_families:
       id: "base"
       price_levels: [-10, -1, 0, 1, 2, 5]
       availability:
-        values: [88, 95, 100, 92, 80, 68, 58, 50, 44, 40, 42, 55, 68, 80, 95, 108, 115, 105, 92, 80, 85, 95, 100, 90]
+        values: [29, 32, 33, 31, 27, 23, 19, 17, 15, 13, 14, 18, 23, 27, 32, 36, 38, 35, 31, 27, 28, 32, 33, 30]
     children:
       - id: "extra_peak"
         price_levels: [-10, -1, 0, 1, 2, 5]
         availability:
-          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 25, 20, 0, 0, 0, 0, 0, 0]
+          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 15, 0, 0, 0, 0, 0, 0]

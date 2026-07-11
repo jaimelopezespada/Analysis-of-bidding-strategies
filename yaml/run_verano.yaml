@@ -8,9 +8,9 @@ resolution: 24            # 24 (horario) | 96 (cuartohorario)
 order_types: [simple, sco, sbo, exbo, lsbo]
 
 prices:
-  csv_path: data/precios_omie_2025-06-01_2025-08-31_hour.csv
+  csv_path: data\precios_omie_2025-05-01_2026-05-31_hour.csv
   scenario_mode: per_day
-  renewable_csv_path: data/generacion_renovable_2025-06-01_2025-08-31_hour.csv
+  renewable_csv_path: data\generacion_renovable_2025-05-01_2026-05-31_hour.csv
 
 objective:
   beta: 0.5               # max (1-beta)*E[Pi] + beta*CVaR_alpha

@@ -8,8 +8,23 @@ to P^V) and how much to dispatch once committed (q_t^s in [MAV_t, Qbar_t]),
 jointly with whether the day-level Minimum Income Condition is met — and,
 once technical_min is activated, whether a feasible dispatch path even
 exists. That coupling cannot be resolved in closed form in general, so it is
-solved as a single MILP spanning all scenarios at once (matching eq. 19:
-theta fixed, all S scenarios, and the CVaR eta/z_s variables in one program).
+solved as a single MILP spanning all scenarios at once.
+
+Two clearing models are available (RunConfig.sco_model):
+- "aware" (default): clearing maximises the DECLARED surplus
+  sum (lambda - P^V) * q — exactly the information EUPHEMIA has (P^V, TF,
+  MAV). Private costs (C, C^SU) and CVaR only enter afterwards, on the fixed
+  dispatch, in the strategy layer — mirroring SBO/Simple. That objective is
+  separable per hour, so the production path solves it in CLOSED FORM
+  (orders/sco.py::_clear_sco_aware, ~4 orders of magnitude faster);
+  build_sco_model_aware below encodes the same model as a MILP and is kept
+  only as a cross-check for tests.
+- "naive" (legacy benchmark): the MILP maximises the REAL risk-adjusted
+  profit (matching eq. 19: theta fixed, all S scenarios, and the CVaR
+  eta/z_s variables in one program), i.e. the market clears with perfect
+  knowledge of the generator's private costs — an upper bound the real
+  market cannot replicate. Only this model genuinely needs the solver
+  (OTM dispatch bounded by the MIC and CVaR couple the decisions).
 
 Note: an out-of-the-money period (P^V > lambda_t^s) is *not* structurally
 excluded from dispatch. It can still be committed and cleared for at least
@@ -61,22 +76,17 @@ def solve_model(model: pyo.ConcreteModel, solver: str = "appsi_highs") -> None:
         raise RuntimeError(f"Solver did not find an optimal/feasible solution: {status}")
 
 
-def build_sco_model(
+def _build_sco_base(
     tech: TechnologyConfig,
     lambda_matrix: np.ndarray,
     avail_matrix: np.ndarray,
-    probs: np.ndarray,
-    cvar_alpha: float,
-    objective: RiskObjective,
     theta: dict,
 ) -> pyo.ConcreteModel:
-    """
-    Build the single MILP for one fixed SCO candidate theta = {price_variable,
-    fixed_term, mav_fraction}, spanning all scenarios plus the CVaR eta/z_s
-    variables (eq. 2-4, 10, 12-19).
-    """
+    """Variables and constraints shared by both SCO clearing models: the
+    physical dispatch band (w_le_u, q_le_w, q_ge_mav, optional q_ge_qmin) and
+    the Minimum Income Condition. Only the objective differs between the
+    "naive" and "aware" builders below."""
     S, T = lambda_matrix.shape
-    cost = np.asarray(tech.cost_array(T), dtype=float)
     pv = float(theta["price_variable"])
     tf = float(theta["fixed_term"])
     mav_frac = float(theta["mav_fraction"])
@@ -100,7 +110,8 @@ def build_sco_model(
     # in-the-money or out-of-the-money alike — moneyness plays no role here.
     # A period only clears if committed, and once committed it must clear at
     # least MAV_t. Whether committing an OTM period is worthwhile is decided
-    # by the solver through mic_rule/profit below, not by a structural bound.
+    # by the solver through mic_rule and the objective, not by a structural
+    # bound.
     m.w = pyo.Var(m.S, m.T, domain=pyo.Binary)  # period committed
 
     def w_le_u_rule(m, s, t):
@@ -129,6 +140,39 @@ def build_sco_model(
         return revenue_surplus >= tf * m.u[s]
     m.mic = pyo.Constraint(m.S, rule=mic_rule)
 
+    return m
+
+
+def build_sco_model_naive(
+    tech: TechnologyConfig,
+    lambda_matrix: np.ndarray,
+    avail_matrix: np.ndarray,
+    probs: np.ndarray,
+    cvar_alpha: float,
+    objective: RiskObjective,
+    theta: dict,
+) -> pyo.ConcreteModel:
+    """
+    Legacy "naive" clearing model: one MILP for a fixed theta spanning all
+    scenarios plus the CVaR eta/z_s variables (eq. 2-4, 10, 12-19), whose
+    objective is the REAL risk-adjusted profit (variable cost C and startup
+    cost C^SU included).
+
+    This gives the solver perfect knowledge of the generator's private costs
+    when deciding acceptance (u) and dispatch (q, w) — something EUPHEMIA can
+    never have, since it only sees the declared parameters (P^V, TF, MAV).
+    The result is therefore an upper bound: the model self-protects against
+    loss-making scenarios in a way the real market cannot replicate, which is
+    exactly why TF=0 comes out systematically optimal under this model (the
+    protection TF should provide is already supplied, unrealistically, by the
+    cost-informed u/w decisions). Kept as a benchmark; see
+    build_sco_model_aware for the market-consistent model.
+    """
+    S, T = lambda_matrix.shape
+    cost = np.asarray(tech.cost_array(T), dtype=float)
+
+    m = _build_sco_base(tech, lambda_matrix, avail_matrix, theta)
+
     # Per-scenario profit (eq. 10)
     def profit_expr(m, s):
         return sum((lambda_matrix[s, t] - cost[t]) * m.q[s, t] for t in m.T) - tech.startup_cost * m.u[s]
@@ -152,6 +196,75 @@ def build_sco_model(
     )
 
     return m
+
+
+def build_sco_model_aware(
+    tech: TechnologyConfig,
+    lambda_matrix: np.ndarray,
+    avail_matrix: np.ndarray,
+    probs: np.ndarray,
+    theta: dict,
+) -> pyo.ConcreteModel:
+    """
+    Market-consistent ("aware") day-level SCO clearing model.
+
+    The revised aware implementation treats the SCO as a single daily order.
+    If the day is accepted by the MIC, every period in the declared daily
+    profile is dispatched at full availability. The only acceptance gate is the
+    day-level declared surplus against TF; the order is not screened period-by-
+    period by moneyness.
+
+    This MILP is kept as a cross-check against the closed-form oracle in
+    tests (test_milp_consistency). Since the profile is fixed once the day is
+    accepted, the transfer from the day-level binary u to the full daily q
+    profile is encoded explicitly below.
+    """
+    pv = float(theta["price_variable"])
+
+    m = _build_sco_base(tech, lambda_matrix, avail_matrix, theta)
+
+    def q_full_profile_rule(m, s, t):
+        return m.q[s, t] == float(avail_matrix[s, t]) * m.u[s]
+    m.q_full_profile = pyo.Constraint(m.S, m.T, rule=q_full_profile_rule)
+
+    def w_day_rule(m, s, t):
+        return m.w[s, t] == m.u[s]
+    m.w_day = pyo.Constraint(m.S, m.T, rule=w_day_rule)
+
+    m.obj = pyo.Objective(
+        expr=sum(
+            float(probs[s]) * (lambda_matrix[s, t] - pv) * m.q[s, t]
+            for s in m.S for t in m.T
+        ),
+        sense=pyo.maximize,
+    )
+
+    return m
+
+
+def build_sco_model(
+    tech: TechnologyConfig,
+    lambda_matrix: np.ndarray,
+    avail_matrix: np.ndarray,
+    probs: np.ndarray,
+    cvar_alpha: float,
+    objective: RiskObjective,
+    theta: dict,
+    sco_model: str = "aware",
+) -> pyo.ConcreteModel:
+    """Dispatch to the selected SCO clearing model.
+
+    ``cvar_alpha``/``objective`` are only consumed by the "naive" branch
+    (risk enters its clearing objective); under "aware" risk is applied
+    afterwards, when the strategy layer selects the best theta.
+    """
+    if sco_model == "naive":
+        return build_sco_model_naive(
+            tech, lambda_matrix, avail_matrix, probs, cvar_alpha, objective, theta
+        )
+    if sco_model == "aware":
+        return build_sco_model_aware(tech, lambda_matrix, avail_matrix, probs, theta)
+    raise ValueError(f"Unknown sco_model {sco_model!r} — expected 'naive' or 'aware'.")
 
 
 def extract_sco_results(model: pyo.ConcreteModel, S: int, T: int) -> tuple[np.ndarray, np.ndarray]:

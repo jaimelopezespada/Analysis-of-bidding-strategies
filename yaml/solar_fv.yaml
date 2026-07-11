@@ -1,16 +1,14 @@
 # ------------------------------------------------------------------
 # Solar fotovoltaica — Familia 1 (no programable, coste bajo)
 # Planta de ~100 MW. Perfil de un dia despejado.
-# Valores ORIENTATIVOS: ajustar y citar fuente en la memoria.
 # ------------------------------------------------------------------
 name: "Solar FV 100 MW"
 family: 1
 side: sell
 
-variable_cost: 0.0        # €/MWh — combustible nulo (solo O&M, despreciable)
+variable_cost: 0.0        # €/MWh — combustible nulo
 startup_cost: 0.0         # € — sin coste de arranque
 technical_min: 0.0        # MWh — sin minimo tecnico
-ramp_limit: null          # sin limite de gradiente
 
 # Q̄_t^s: disponibilidad por escenario/dia, escalada proporcionalmente desde la
 # generacion solar real (ESIOS) del run (ver prices.renewable_csv_path), para

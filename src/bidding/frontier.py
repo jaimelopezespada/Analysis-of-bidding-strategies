@@ -20,6 +20,7 @@ def sweep_beta(
     order_type: str,
     betas: list[float],
     startup_per_transition: bool = False,
+    sco_model: str = "aware",
 ) -> pd.DataFrame:
     """
     Re-evaluate ``order_type`` once per beta in ``betas``. The optimal theta
@@ -34,6 +35,7 @@ def sweep_beta(
         result = strategy.evaluate(
             tech, lambda_matrix, avail_matrix, probs, grid, objective, cvar_alpha,
             startup_per_transition=startup_per_transition,
+            sco_model=sco_model,
         )
         obj_value = objective_value(result["profits"], probs, cvar_alpha, objective)
         rows.append(

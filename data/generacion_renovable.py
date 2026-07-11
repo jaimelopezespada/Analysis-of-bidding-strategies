@@ -3,6 +3,8 @@ import pandas as pd
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
+from precios_omie import normalizar_dias_dst
+
 MADRID_TZ = ZoneInfo('Europe/Madrid')
 
 # Indicadores ESIOS de "Generación medida" (real, no programada). Están
@@ -62,7 +64,9 @@ def _fetch_indicador_nacional(api_key, indicator_id, start_date_utc, end_date_ut
             continue
 
         df = pd.DataFrame(valores)
-        df['datetime'] = pd.to_datetime(df['datetime']).dt.tz_convert(MADRID_TZ)
+        # utc=True: en meses con cambio de hora la respuesta mezcla offsets
+        # +02:00/+01:00 y sin ello pandas no puede hacer tz_convert.
+        df['datetime'] = pd.to_datetime(df['datetime'], utc=True).dt.tz_convert(MADRID_TZ)
         series_chunks.append(df.groupby('datetime')['value'].sum())
 
     if not series_chunks:
@@ -127,6 +131,15 @@ def obtener_generacion_renovable(api_key, start_date, end_date, resolucion='hour
         'renewable_total_mwh': df['renewable_total_mwh'].round(2),
     })
     df_final.reset_index(drop=True, inplace=True)
+
+    # Dias de cambio horario (25 h en octubre, 23 h en marzo): se normalizan
+    # a 24 periodos igual que los precios para que el pipeline no falle.
+    periodos_dia = 24 if resolucion == 'hour' else 96
+    df_final = normalizar_dias_dst(
+        df_final,
+        ['wind_mwh', 'solar_mwh', 'renewable_total_mwh'],
+        periodos_dia,
+    )
 
     return df_final
 

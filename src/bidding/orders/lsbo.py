@@ -42,6 +42,7 @@ class LSBOStrategy(OrderStrategy):
         objective: RiskObjective,
         cvar_alpha: float,
         startup_per_transition: bool = False,  # unused: family accept/reject is day-level
+        sco_model: str = "aware",  # unused: only SCO has a solver-based clearing model
     ) -> dict:
         if not tech.lsbo_families:
             raise ValueError(

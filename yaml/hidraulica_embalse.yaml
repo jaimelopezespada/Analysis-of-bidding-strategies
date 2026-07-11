@@ -3,18 +3,16 @@
 # flexible (extremo opuesto a la nuclear dentro de F2). Unidad de ~200 MW.
 # El coste variable es un PROXY del valor del agua (coste de oportunidad,
 # no observable directamente) — limitacion documentada aqui y en la memoria.
-# El volumen embalsado diario se aproxima con energy_capacity (igual que la
-# bateria): v1 no modela el estado del embalse entre dias.
-# Valores ORIENTATIVOS: ajustar y citar fuente en la memoria.
+# El volumen dispachado diario se aproxima con energy_capacity (igual que la
+# bateria): no modela el estado del embalse entre dias.
 # ------------------------------------------------------------------
 name: "Hidraulica embalse 200 MW"
 family: 2
 side: sell
 
 variable_cost: 8.0        # €/MWh — proxy del valor del agua (coste de oportunidad, no observable)
-startup_cost: 500.0       # € — arranque rapido y barato (contraste frente a nuclear: 300 000 €)
+startup_cost: 500.0       # € — arranque rapido y barato 
 technical_min: 30.0       # MWh — ~15% de la capacidad (caudal ecologico minimo)
-ramp_limit: 120.0         # MWh/hora — muy flexible (~60% de la capacidad/hora); solo caracterizacion cualitativa, NO se aplica (ver optimizer.py)
 enforce_technical_constraints: true  # activa el minimo tecnico como restriccion real del MILP
 energy_capacity: 2000.0   # MWh/dia — proxy del volumen embalsado gestionable (10 h-turbina equivalentes)
 
@@ -23,17 +21,14 @@ energy_capacity: 2000.0   # MWh/dia — proxy del volumen embalsado gestionable 
 availability:
   values: [200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200]
 
-# price_levels centrados bajo (coste variable=8). No hay SCO para Familia 2
-# (ver tabla de mapeo), tf_levels se mantiene por completitud del esquema.
+# price_levels centrados bajo. 
 # mar_levels/mav_fraction_levels: technical_min=30 sobre 200 MW de capacidad
-# (caudal ecologico) -> floor = 30/200 = 0.15. La planta solo despacha 0 o
-# >= 30 MW, nunca un valor intermedio, asi que ningun nivel puede caer por
-# debajo de 0.15 (ni siquiera 0.0: ver TechnologyConfig.effective_grid).
+# (caudal ecologico) -> floor = 30/200 = 0.15. 
 candidate_grid:
-  price_levels:        [0, 5, 8, 10, 15, 20, 30]
+  price_levels:        [0, 2, 4, 6, 8, 10, 12, 15, 20, 30]
   mar_levels:          [0.15, 0.3, 0.5, 0.8, 1.0]
   mav_fraction_levels: [0.15, 0.5, 0.8, 1.0]
-  tf_levels:           [0]
+  tf_levels:           [0, 250, 350, 450, 500, 600, 750, 1000]
 
 # EXBO: dos formas alternativas y mutuamente excluyentes de comprometer la
 # turbinacion diaria (casa como maximo una) — turbinar fuerte y concentrado
