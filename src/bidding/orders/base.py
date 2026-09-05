@@ -6,7 +6,25 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from ..config import CandidateGrid, RiskObjective, TechnologyConfig
+from ..config import BlockConfig, ResolvedGrid, RiskObjective, TechnologyConfig
+
+
+def block_avail_matrix(block: BlockConfig, avail_matrix: np.ndarray) -> np.ndarray:
+    """(S, T) declared availability of an EXBO/LSBO block.
+
+    source="static": the declared per-period profile, identical in every
+    scenario (legacy behaviour — fine for dispatchable plants whose
+    availability is constant anyway).
+    source="tech_fraction": per-period fractions of the technology's real
+    scenario-varying availability, so the block's declared quantity tracks
+    the actual daily resource (solar/wind) instead of promising MW that do
+    not exist on low-resource days.
+    """
+    S = avail_matrix.shape[0]
+    values = np.asarray(block.availability.values, dtype=float)
+    if block.availability.source == "tech_fraction":
+        return values[None, :] * avail_matrix
+    return np.tile(values, (S, 1))
 
 
 class OrderStrategy(ABC):
@@ -27,7 +45,7 @@ class OrderStrategy(ABC):
         lambda_matrix: np.ndarray,  # shape (S, T)
         avail_matrix: np.ndarray,   # shape (S, T) — Q_bar_t^s, scenario-varying
         probs: np.ndarray,          # shape (S,)
-        grid: CandidateGrid,
+        grid: ResolvedGrid,
         objective: RiskObjective,
         cvar_alpha: float,
         startup_per_transition: bool = False,
@@ -54,6 +72,7 @@ class OrderStrategy(ABC):
             cvar                float
             match_probability   float
             expected_matched_energy float
+            expected_matched_periods float – N̄ = Σ_s ρ_s · Σ_t 1[q_t^s > 0]
             expected_profit_per_mw float  – E[Π] / installed capacity (€/MW)
         """
         ...

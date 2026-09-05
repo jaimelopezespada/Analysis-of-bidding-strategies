@@ -18,16 +18,17 @@ enforce_technical_constraints: true  # activa el minimo tecnico como restriccion
 availability:
   values: [400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400]
 
-# C_V=75 €/MWh, C_SU=60 000 €.
-# price_levels: centrados en 75 (coste variable exacto). Valores por debajo
-# implican despachar a perdida; valores muy por encima reducen las horas casadas.
+# C_V=85 €/MWh, C_SU=60 000 €.
+# price_levels_pct: fracciones del coste variable (1.0 = ofertar al coste
+# exacto); x85 -> [60, 70, 83, 85, 87, 90] €/MWh. Por debajo de 1.0 implica
+# despachar a perdida; muy por encima reduce las horas casadas.
 # tf_levels: en torno a C_SU=60 000 €. La SCO protege el arranque con la MIC.
 # mar_levels/mav_fraction_levels: technical_min=120 sobre 400 MW de capacidad
 # -> floor = 120/400 = 0.30. La planta solo despacha 0 o >= 120 MW, nunca un
 # valor intermedio, asi que ningun nivel puede caer por debajo de 0.30 (ni
-# siquiera 0.0: ver TechnologyConfig.effective_grid).
+# siquiera 0.0: ver TechnologyConfig.resolved_grid).
 candidate_grid:
-  price_levels:        [60, 70, 83, 85, 87, 90]
+  price_levels_pct:    [0.7059, 0.8235, 0.9765, 1.0, 1.0235, 1.0588]
   mar_levels:          [0.3, 0.4, 0.5, 0.8, 1.0]
   mav_fraction_levels: [0.3, 0.5, 0.8, 1.0]
   tf_levels:           [0, 10000, 20000, 55000, 60000, 65000, 70000, 80000, 90000]
@@ -40,11 +41,11 @@ exbo_groups:
   - group_id: "ccgt_commitment_choice"
     blocks:
       - id: "minimo_tecnico_block"
-        price_levels: [60, 70, 83, 85, 87, 90]
+        price_levels_pct: [0.7059, 0.8235, 0.9765, 1.0, 1.0235, 1.0588]
         availability:
           values: [120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120]
       - id: "plena_carga_block"
-        price_levels: [60, 70, 83, 85, 87, 90]
+        price_levels_pct: [0.7059, 0.8235, 0.9765, 1.0, 1.0235, 1.0588]
         availability:
           values: [400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400]
 
@@ -56,11 +57,11 @@ lsbo_families:
   - family_id: "ccgt_base_plus_full"
     parent:
       id: "base_minimo_tecnico"
-      price_levels: [60, 70, 83, 85, 87, 90]
+      price_levels_pct: [0.7059, 0.8235, 0.9765, 1.0, 1.0235, 1.0588]
       availability:
         values: [120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120]
     children:
       - id: "extra_plena_carga"
-        price_levels: [60, 70, 83, 85, 87, 90]
+        price_levels_pct: [0.7059, 0.8235, 0.9765, 1.0, 1.0235, 1.0588]
         availability:
           values: [280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280]

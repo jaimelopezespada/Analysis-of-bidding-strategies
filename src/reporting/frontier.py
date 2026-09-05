@@ -5,9 +5,9 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .config import CandidateGrid, RiskObjective, TechnologyConfig
-from .metrics import objective_value
-from .orders import STRATEGIES
+from bidding.config import ResolvedGrid, RiskObjective, TechnologyConfig
+from bidding.metrics import objective_value
+from bidding.orders import STRATEGIES
 
 
 def sweep_beta(
@@ -15,7 +15,7 @@ def sweep_beta(
     lambda_matrix: np.ndarray,
     avail_matrix: np.ndarray,
     probs: np.ndarray,
-    grid: CandidateGrid,
+    grid: ResolvedGrid,
     cvar_alpha: float,
     order_type: str,
     betas: list[float],

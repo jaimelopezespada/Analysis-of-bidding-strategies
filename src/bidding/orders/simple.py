@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..config import CandidateGrid, RiskObjective, TechnologyConfig
+from ..config import ResolvedGrid, RiskObjective, TechnologyConfig
 from ..metrics import compute_metrics, objective_value
 from .base import OrderStrategy
 
@@ -26,7 +26,7 @@ class SimpleOrderStrategy(OrderStrategy):
         lambda_matrix: np.ndarray,
         avail_matrix: np.ndarray,
         probs: np.ndarray,
-        grid: CandidateGrid,
+        grid: ResolvedGrid,
         objective: RiskObjective,
         cvar_alpha: float,
         startup_per_transition: bool = False,

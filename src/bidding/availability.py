@@ -32,6 +32,13 @@ def load_renewable_availability(
     This approximation is documented as a modelling limitation in the thesis.
 
     Q_bar_t^s = generation_t^s / max(generation) * nameplate_capacity_mw
+
+    If availability.daily_min_generation_pct > 0, hours whose generation is
+    below that fraction of the SAME day's maximum are zeroed first. The ESIOS
+    national aggregate keeps a small residual solar generation at night
+    (metering noise / solar-thermal), which otherwise lets the optimizer match
+    tiny night-time quantities and inflates expected matched periods to ~22 h.
+    Documented as a modelling decision in the thesis.
     """
     if prices_cfg.renewable_csv_path is None:
         raise ValueError(
@@ -62,6 +69,14 @@ def load_renewable_availability(
     label_to_row = {label: i for i, label in enumerate(gen_labels)}
     order = [label_to_row[label] for label in scenario_labels]
     gen_aligned = gen_matrix[order, :]
+
+    if avail_cfg.daily_min_generation_pct > 0:
+        daily_max = gen_aligned.max(axis=1, keepdims=True)
+        gen_aligned = np.where(
+            gen_aligned < avail_cfg.daily_min_generation_pct * daily_max,
+            0.0,
+            gen_aligned,
+        )
 
     cap_national = gen_aligned.max()
     if cap_national <= 0:

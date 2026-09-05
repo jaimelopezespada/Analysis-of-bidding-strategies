@@ -6,9 +6,9 @@ import itertools
 
 import numpy as np
 
-from ..config import CandidateGrid, RiskObjective, TechnologyConfig
+from ..config import ResolvedGrid, RiskObjective, TechnologyConfig
 from ..metrics import compute_metrics, objective_value
-from .base import OrderStrategy
+from .base import OrderStrategy, block_avail_matrix
 
 
 class LSBOStrategy(OrderStrategy):
@@ -38,7 +38,7 @@ class LSBOStrategy(OrderStrategy):
         lambda_matrix: np.ndarray,
         avail_matrix: np.ndarray,
         probs: np.ndarray,
-        grid: CandidateGrid,
+        grid: ResolvedGrid,
         objective: RiskObjective,
         cvar_alpha: float,
         startup_per_transition: bool = False,  # unused: family accept/reject is day-level
@@ -56,19 +56,17 @@ class LSBOStrategy(OrderStrategy):
         best_obj = -np.inf
         best_result: dict | None = None
 
+        ref = tech.price_reference_value
         for family in tech.lsbo_families:
             parent = family.parent
             children = family.children
-            parent_price_grid = parent.price_levels if parent.price_levels is not None else grid.price_levels
+            parent_price_grid = parent.resolved_price_levels(ref, grid.price_levels)
             child_price_grids = [
-                c.price_levels if c.price_levels is not None else grid.price_levels
-                for c in children
+                c.resolved_price_levels(ref, grid.price_levels) for c in children
             ]
 
             for parent_price, *child_prices in itertools.product(parent_price_grid, *child_price_grids):
-                parent_avail = np.tile(
-                    np.asarray(parent.availability.values, dtype=float), (S, 1)
-                )
+                parent_avail = block_avail_matrix(parent, avail_matrix)
                 w_parent = (
                     np.sum(lambda_matrix * parent_avail, axis=1)
                     - float(parent_price) * parent_avail.sum(axis=1)
@@ -77,7 +75,7 @@ class LSBOStrategy(OrderStrategy):
                 child_avail = np.zeros((len(children), S, T))
                 w_children = np.zeros((len(children), S))
                 for i, (child, price) in enumerate(zip(children, child_prices)):
-                    avail_h = np.tile(np.asarray(child.availability.values, dtype=float), (S, 1))
+                    avail_h = block_avail_matrix(child, avail_matrix)
                     child_avail[i] = avail_h
                     w_children[i] = (
                         np.sum(lambda_matrix * avail_h, axis=1) - float(price) * avail_h.sum(axis=1)

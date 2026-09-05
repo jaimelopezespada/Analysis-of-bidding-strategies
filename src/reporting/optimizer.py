@@ -65,7 +65,7 @@ from __future__ import annotations
 import numpy as np
 import pyomo.environ as pyo
 
-from .config import RiskObjective, TechnologyConfig
+from bidding.config import RiskObjective, TechnologyConfig
 
 
 def solve_model(model: pyo.ConcreteModel, solver: str = "appsi_highs") -> None:

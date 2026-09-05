@@ -20,7 +20,7 @@ objective:
 cvar_alpha: 0.95
 
 candidate_grid:
-  price_levels:        [0, 1, 5, 10, 20, 40, 60, 80]
+  price_levels_pct:    [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
   mar_levels:          [0.0, 0.3, 0.5, 0.8, 1.0]
   mav_fraction_levels: [0.0, 0.5, 0.8, 1.0]
   tf_levels:           [0, 50, 100, 200, 500]

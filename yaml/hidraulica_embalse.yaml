@@ -2,7 +2,12 @@
 # Hidraulica de embalse — Familia 2 (programable, coste bajo) pero MUY
 # flexible (extremo opuesto a la nuclear dentro de F2). Unidad de ~200 MW.
 # El coste variable es un PROXY del valor del agua (coste de oportunidad,
-# no observable directamente) — limitacion documentada aqui y en la memoria.
+# no observable directamente): se resuelve EN EJECUCION como el precio medio
+# mensual del mercado (media de todos los precios horarios de los escenarios
+# de ese mes), porque el agua turbinada desplaza energia valorada al precio
+# del mercado. Calcularlo del propio mes introduce prevision perfecta
+# intra-mes — limitacion documentada aqui y en la memoria (contrastar con la
+# tabla de medias mensuales OMIE 2025).
 # El volumen dispachado diario se aproxima con energy_capacity (igual que la
 # bateria): no modela el estado del embalse entre dias.
 # ------------------------------------------------------------------
@@ -10,8 +15,8 @@ name: "Hidraulica embalse 200 MW"
 family: 2
 side: sell
 
-variable_cost: 8.0        # €/MWh — proxy del valor del agua (coste de oportunidad, no observable)
-startup_cost: 500.0       # € — arranque rapido y barato 
+variable_cost_source: monthly_price_mean  # valor del agua = precio medio mensual (sin variable_cost fijo)
+startup_cost: 500.0       # € — arranque rapido y barato
 technical_min: 30.0       # MWh — ~15% de la capacidad (caudal ecologico minimo)
 enforce_technical_constraints: true  # activa el minimo tecnico como restriccion real del MILP
 energy_capacity: 2000.0   # MWh/dia — proxy del volumen embalsado gestionable (10 h-turbina equivalentes)
@@ -21,11 +26,13 @@ energy_capacity: 2000.0   # MWh/dia — proxy del volumen embalsado gestionable 
 availability:
   values: [200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200]
 
-# price_levels centrados bajo. 
+# price_levels_pct: fracciones del valor del agua del mes (1.0 = ofertar
+# exactamente al valor del agua). Al resolverse el coste cada mes, la rejilla
+# absoluta se reescala sola — no hay que tocar este YAML si cambian los precios.
 # mar_levels/mav_fraction_levels: technical_min=30 sobre 200 MW de capacidad
-# (caudal ecologico) -> floor = 30/200 = 0.15. 
+# (caudal ecologico) -> floor = 30/200 = 0.15.
 candidate_grid:
-  price_levels:        [0, 2, 4, 6, 8, 10, 12, 15, 20, 30]
+  price_levels_pct:    [0.0, 0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0]
   mar_levels:          [0.15, 0.3, 0.5, 0.8, 1.0]
   mav_fraction_levels: [0.15, 0.5, 0.8, 1.0]
   tf_levels:           [0, 250, 350, 450, 500, 600, 750, 1000]
@@ -38,11 +45,11 @@ exbo_groups:
   - group_id: "hidraulica_shape_choice"
     blocks:
       - id: "evening_peak_block"
-        price_levels: [0, 5, 10, 15]
+        price_levels_pct: [0.0, 0.5, 1.0, 1.5]
         availability:
           values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 200, 200, 200, 200, 0, 0]
       - id: "broad_block"
-        price_levels: [0, 5, 8, 10]
+        price_levels_pct: [0.0, 0.5, 0.9, 1.0]
         availability:
           values: [0, 0, 0, 0, 0, 0, 0, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 0]
 
@@ -55,11 +62,11 @@ lsbo_families:
   - family_id: "hidraulica_base_plus_punta"
     parent:
       id: "base"
-      price_levels: [0, 5, 8, 10]
+      price_levels_pct: [0.0, 0.5, 0.9, 1.0]
       availability:
         values: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100]
     children:
       - id: "extra_punta"
-        price_levels: [0, 5, 10, 15, 20]
+        price_levels_pct: [0.0, 0.5, 1.0, 1.5, 2.0]
         availability:
           values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 100, 100, 100, 0, 0]

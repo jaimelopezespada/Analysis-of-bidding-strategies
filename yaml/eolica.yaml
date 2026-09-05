@@ -7,6 +7,8 @@ family: 1
 side: sell
 
 variable_cost: 0.0        # €/MWh — combustible nulo
+price_reference: 10.0     # €/MWh — referencia explicita para price_levels_pct
+                          # (obligatoria con variable_cost=0: los pct de coste 0 degeneran)
 startup_cost: 0.0         # € — sin coste de arranque
 technical_min: 0.0        # MWh — sin minimo tecnico
 
@@ -20,38 +22,48 @@ availability:
   values: [88, 95, 100, 92, 80, 68, 58, 50, 44, 40, 42, 55, 68, 80, 95, 108, 115, 105, 92, 80, 85, 95, 100, 90]
 
 # Identico a solar: C_V=0, sin coste de arranque.
+# price_levels_pct x price_reference=10 -> [-10, -2, -1, 0, 1, 2, 5, 10, 20] €/MWh.
 candidate_grid:
-  price_levels:        [-10, -2, -1, 0, 1, 2, 5, 10, 20]
+  price_levels_pct:    [-1.0, -0.2, -0.1, 0.0, 0.1, 0.2, 0.5, 1.0, 2.0]
   mar_levels:          [0.0, 0.3, 0.5, 0.8, 1.0]
   mav_fraction_levels: [0.0, 0.5, 0.8, 1.0]
   tf_levels:           [0]
 
 # EXBO: dos perfiles de bloque alternativos y mutuamente excluyentes (punta
 # de noche/tarde, que es cuando mas viento hay segun el perfil, frente a un
-# bloque amplio que cubre todo el dia).
+# bloque amplio que cubre todo el dia). source=tech_fraction: los values son
+# FRACCIONES horarias de la disponibilidad eolica real de cada dia (CSV
+# ESIOS), de modo que la cantidad declarada sigue el recurso del dia en vez
+# de prometer MW que no existen en dias de poco viento.
 exbo_groups:
   - group_id: "eolica_shape_choice"
     blocks:
       - id: "night_evening_peak_block"    # horas de mayor viento: madrugada + tarde-noche
-        price_levels: [-10, -1, 0, 1, 2, 5]
+        price_levels_pct: [-1.0, -0.1, 0.0, 0.1, 0.2, 0.5]
         availability:
-          values: [29, 32, 33, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 36, 38, 35, 31, 27, 28, 32, 33, 30]
+          source: tech_fraction
+          values: [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1]
       - id: "broad_block"                 # todo el dia
-        price_levels: [-10, -1, 0, 1, 2, 5]
+        price_levels_pct: [-1.0, -0.1, 0.0, 0.1, 0.2, 0.5]
         availability:
-          values: [29, 32, 33, 31, 27, 23, 19, 17, 15, 13, 14, 18, 23, 27, 32, 36, 38, 35, 31, 27, 28, 32, 33, 30]
+          source: tech_fraction
+          values: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 
-# LSBO: programa base (padre, todo el dia) + paquete adicional opcional en
-# las horas de mayor viento (hijo), que solo entra si es rentable por si mismo.
+# LSBO: programa base (padre, 70% del recurso de cada hora) + paquete
+# adicional opcional en las horas de mayor viento (hijo, el 30% restante),
+# que solo entra si es rentable por si mismo. Padre + hijo <= 1.0: nunca se
+# declara mas energia de la disponible ese dia.
 lsbo_families:
   - family_id: "eolica_base_plus_peak"
     parent:
       id: "base"
-      price_levels: [-10, -1, 0, 1, 2, 5]
+      price_levels_pct: [-1.0, -0.1, 0.0, 0.1, 0.2, 0.5]
       availability:
-        values: [29, 32, 33, 31, 27, 23, 19, 17, 15, 13, 14, 18, 23, 27, 32, 36, 38, 35, 31, 27, 28, 32, 33, 30]
+        source: tech_fraction
+        values: [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7]
     children:
       - id: "extra_peak"
-        price_levels: [-10, -1, 0, 1, 2, 5]
+        price_levels_pct: [-1.0, -0.1, 0.0, 0.1, 0.2, 0.5]
         availability:
-          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 12, 15, 0, 0, 0, 0, 0, 0]
+          source: tech_fraction
+          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.3, 0.3, 0.3, 0, 0, 0, 0, 0, 0]

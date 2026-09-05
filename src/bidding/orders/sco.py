@@ -6,9 +6,10 @@ import itertools
 
 import numpy as np
 
-from ..config import CandidateGrid, RiskObjective, TechnologyConfig
+from reporting.optimizer import build_sco_model_naive, extract_sco_results, solve_model
+
+from ..config import ResolvedGrid, RiskObjective, TechnologyConfig
 from ..metrics import compute_metrics, objective_value
-from ..optimizer import build_sco_model_naive, extract_sco_results, solve_model
 from .base import OrderStrategy
 from .simple import _apply_energy_cap
 
@@ -138,7 +139,7 @@ class SCOStrategy(OrderStrategy):
         lambda_matrix: np.ndarray,
         avail_matrix: np.ndarray,
         probs: np.ndarray,
-        grid: CandidateGrid,
+        grid: ResolvedGrid,
         objective: RiskObjective,
         cvar_alpha: float,
         startup_per_transition: bool = False,  # unused: SCO acceptance is day-level

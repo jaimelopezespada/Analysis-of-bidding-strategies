@@ -10,7 +10,7 @@ name: "Bateria 50 MW / 200 MWh"
 family: 4
 side: sell
 
-variable_cost: 20        # €/MWh — proxy de degradacion/coste de oportunidad
+variable_cost_source: monthly_price_mean  # coste = precio medio mensual (proxy de degradacion/coste de oportunidad)
 startup_cost: 0.0         # € — sin coste de arranque
 technical_min: 0.0        # MWh — puede entregar cualquier nivel
 ramp_limit: null          # gradiente practicamente instantaneo
@@ -20,11 +20,12 @@ energy_capacity: 200.0    # MWh/dia — presupuesto de descarga del ciclo (4 h x
 availability:
   values: [50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50]
 
-# C_V=5 €/MWh: price_levels incluyen 5 (coste exacto) y valores altos para
-# la bateria aproveche los picos de precio (logica de arbitraje).
+# El coste se resuelve cada mes al precio medio horario del mercado, y los
+# price_levels_pct escalan sobre esa referencia: 1.0 = ofertar al precio medio
+# mensual, y los niveles altos (2.0, 3.0) capturan los picos (arbitraje).
 # tf_levels=0 porque no hay coste de arranque.
 candidate_grid:
-  price_levels:        [0, 5, 10, 15, 20, 25, 40, 60]
+  price_levels_pct:    [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 2.0, 3.0]
   mar_levels:          [0.0, 0.3, 0.5, 0.8, 1.0]
   mav_fraction_levels: [0.0, 0.5, 0.8, 1.0]
   tf_levels:           [0]
@@ -35,11 +36,11 @@ exbo_groups:
   - group_id: "bateria_shape_choice"
     blocks:
       - id: "evening_peak_block"
-        price_levels: [0, 5, 10, 15, 20, 25, 40, 60]
+        price_levels_pct: [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 2.0, 3.0]
         availability:
           values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 50, 50, 0, 0, 0]
       - id: "broad_block"
-        price_levels: [0, 5, 10, 15, 20, 25, 40, 60]
+        price_levels_pct: [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 2.0, 3.0]
         availability:
           values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 50, 50, 50, 0, 0, 0, 0]
 
@@ -49,11 +50,11 @@ lsbo_families:
   - family_id: "bateria_base_plus_peak"
     parent:
       id: "base"
-      price_levels: [0, 5, 10, 15, 20, 25, 40, 60]
+      price_levels_pct: [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 2.0, 3.0]
       availability:
         values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 50, 0, 0, 0, 0]
     children:
       - id: "extra_evening"
-        price_levels: [0, 5, 10, 15, 20, 25, 40, 60]
+        price_levels_pct: [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 2.0, 3.0]
         availability:
           values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 0, 0, 0]

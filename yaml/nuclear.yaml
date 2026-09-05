@@ -19,16 +19,18 @@ availability:
   values: [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000]
 
 # C_V=15 €/MWh, C_SU=500 000 €.
-# price_levels: alrededor del coste variable (15). Nuclear casi siempre oferta
-# a precio bajo para asegurar despacho (must-run), pero no a 0 para no perder.
+# price_levels_pct: fracciones del coste variable (1.0 = ofertar al coste
+# exacto); x15 -> [0, 5, 8, 10, 12, 14, 16, 18, 20, 25, 30] €/MWh. Nuclear
+# casi siempre oferta a precio bajo para asegurar despacho (must-run), pero
+# no a 0 para no perder.
 # tf_levels: en torno al coste de arranque (500 000 €). Nuclear raramente apaga,
 # pero si lo hace necesita cubrir ese coste enorme.
 # mar_levels/mav_fraction_levels: technical_min=500 sobre 1000 MW de capacidad
 # -> floor = 500/1000 = 0.5. La planta solo despacha 0 o >= 500 MW, nunca un
 # valor intermedio, asi que ningun nivel puede caer por debajo de 0.95 (ni
-# siquiera 0.0: ver TechnologyConfig.effective_grid).
+# siquiera 0.0: ver TechnologyConfig.resolved_grid).
 candidate_grid:
-  price_levels:        [0, 5, 8, 10, 12, 14, 16, 18, 20, 25, 30]
+  price_levels_pct:    [0.0, 0.3333, 0.5333, 0.6667, 0.8, 0.9333, 1.0667, 1.2, 1.3333, 1.6667, 2.0]
   mar_levels:          [0.5, 0.55, 0.6, 0.7]
   mav_fraction_levels: [0.5, 0.55, 0.6, 0.7]
   tf_levels:           [0, 200000, 300000, 400000, 450000, 500000, 550000, 1000000]
@@ -41,11 +43,11 @@ exbo_groups:
   - group_id: "nuclear_commitment_choice"
     blocks:
       - id: "minimo_tecnico_block"
-        price_levels: [0, 5, 10, 14, 15, 16, 20]
+        price_levels_pct: [0.0, 0.3333, 0.6667, 0.9333, 1.0, 1.0667, 1.3333]
         availability:
           values: [500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500]
       - id: "plena_carga_block"
-        price_levels: [0, 5, 10, 14, 15, 16, 20]
+        price_levels_pct: [0.0, 0.3333, 0.6667, 0.9333, 1.0, 1.0667, 1.3333]
         availability:
           values: [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000]
 
@@ -57,11 +59,11 @@ lsbo_families:
   - family_id: "nuclear_base_plus_full"
     parent:
       id: "base_minimo_tecnico"
-      price_levels: [0, 5, 10, 14, 15, 16, 20]
+      price_levels_pct: [0.0, 0.3333, 0.6667, 0.9333, 1.0, 1.0667, 1.3333]
       availability:
         values: [500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500]
     children:
       - id: "extra_plena_carga"
-        price_levels: [0, 5, 10, 14, 15, 16, 20]
+        price_levels_pct: [0.0, 0.3333, 0.6667, 0.9333, 1.0, 1.0667, 1.3333]
         availability:
           values: [500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500]

@@ -9,9 +9,9 @@ import numpy as np
 import pandas as pd
 import yaml as pyyaml
 
-from .cli import _ensure_utf8_stdout, evaluate_technology
-from .config import RunConfig, TechnologyConfig
-from .plots import plot_family_comparison, plot_family_season_comparison
+from bidding.cli import _ensure_utf8_stdout, evaluate_technology
+from bidding.config import RunConfig, TechnologyConfig
+from bidding.plots import plot_family_comparison, plot_family_season_comparison
 from .seasons import _season_label
 
 
@@ -51,7 +51,7 @@ def run_family(family_num: str, run_path: str, yaml_dir: str = "yaml") -> None:
         for tech_path in tech_paths:
             tech = TechnologyConfig.from_yaml(tech_path)
             print(f"\n  Evaluando {tech.name}...")
-            results, ranking, _ = evaluate_technology(tech, cfg)
+            _, ranking = evaluate_technology(tech, cfg)
             if ranking is None:
                 print(f"  [WARN] Sin resultados para {tech.name} — omitida.", file=sys.stderr)
                 continue
@@ -106,7 +106,7 @@ def run_family_seasons(
             for run_path in (run_verano_path, run_invierno_path):
                 cfg = RunConfig.from_yaml(run_path)
                 np.random.seed(cfg.seed)
-                _, ranking, _ = evaluate_technology(tech, cfg)
+                _, ranking = evaluate_technology(tech, cfg)
                 if ranking is None:
                     print(f"  [WARN] Sin resultados para {tech.name} ({run_path}) — omitida.", file=sys.stderr)
                     continue

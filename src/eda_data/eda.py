@@ -1,8 +1,9 @@
 """Análisis exploratorio (EDA) de precios OMIE y generación renovable.
 
-Compara el régimen de verano (2025-06-01 a 2025-08-31) con el de invierno
-(2025-12-01 a 2026-02-28) a resolución horaria, generando las figuras y la
-tabla de estadísticos usados en la sección de EDA de la memoria.
+Compara el régimen de verano (2025-06-01 a 2025-08-31), el de invierno
+(2025-12-01 a 2026-02-28) y el año completo (2025-05-01 a 2026-04-30) a
+resolución horaria, generando las figuras y la tabla de estadísticos usados
+en la sección de EDA de la memoria.
 """
 
 from __future__ import annotations
@@ -31,11 +32,23 @@ SEASONS = {
         "gen_csv": DATA_DIR / "generacion_renovable_2025-12-01_2026-02-28_hour.csv",
         "color": "#2196F3",
     },
+    "anual": {
+        "label": "Año completo 2025-2026",
+        "price_csv": DATA_DIR / "precios_omie_2025-05-01_2026-04-30_hour.csv",
+        "gen_csv": DATA_DIR / "generacion_renovable_2025-05-01_2026-04-30_hour.csv",
+        "color": "#4CAF50",
+    },
 }
 
 _DPI = 150
-_FIGSIZE_WIDE = (10, 5)
-_FIGSIZE_STD = (7, 5)
+_FIGSIZE_WIDE = (14, 5)
+_FIGSIZE_STD = (12, 5)
+
+# Cada figura tiene dos paneles: comparación estacional | año completo.
+_PANELS = [
+    ("Invierno vs. Verano", ["verano", "invierno"]),
+    ("Año completo", ["anual"]),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -86,25 +99,28 @@ def save_stats_csv(stats_by_season: dict[str, dict], path: Path) -> pd.DataFrame
 
 
 def save_stats_tex(stats_by_season: dict[str, dict], path: Path) -> None:
-    order = list(SEASONS.keys())
-    v, i = stats_by_season[order[0]], stats_by_season[order[1]]
+    order = [k for k in SEASONS if k in stats_by_season]
+    stats = [stats_by_season[k] for k in order]
     labels = [SEASONS[k]["label"] for k in order]
+
+    def row(name: str, cell) -> str:
+        return name + " & " + " & ".join(cell(s) for s in stats) + r" \\"
 
     lines = [
         r"\begin{table}[ht]",
         r"\centering",
         r"\caption{Estadísticos descriptivos del precio horario por tramo.}",
         r"\label{tab:estadisticos}",
-        r"\begin{tabular}{lcc}",
+        r"\begin{tabular}{l" + "c" * len(order) + "}",
         r"\toprule",
-        r"\textbf{Estadístico} & \textbf{" + labels[0] + r"} & \textbf{" + labels[1] + r"} \\",
+        r"\textbf{Estadístico} & " + " & ".join(rf"\textbf{{{l}}}" for l in labels) + r" \\",
         r"\midrule",
-        rf"Media (\euro/MWh)          & {v['mean']:.2f} & {i['mean']:.2f} \\",
-        rf"Mediana (\euro/MWh)        & {v['median']:.2f} & {i['median']:.2f} \\",
-        rf"Desviación típica          & {v['std']:.2f} & {i['std']:.2f} \\",
-        rf"Percentil 5 / 95           & {v['p5']:.2f} / {v['p95']:.2f} & {i['p5']:.2f} / {i['p95']:.2f} \\",
-        rf"Mínimo / Máximo            & {v['min']:.2f} / {v['max']:.2f} & {i['min']:.2f} / {i['max']:.2f} \\",
-        rf"Horas con precio $\le 0$   & {v['n_le0']} ({v['pct_le0']:.1f}\%) & {i['n_le0']} ({i['pct_le0']:.1f}\%) \\",
+        row(r"Media (\euro/MWh)          ", lambda s: f"{s['mean']:.2f}"),
+        row(r"Mediana (\euro/MWh)        ", lambda s: f"{s['median']:.2f}"),
+        row(r"Desviación típica          ", lambda s: f"{s['std']:.2f}"),
+        row(r"Percentil 5 / 95           ", lambda s: f"{s['p5']:.2f} / {s['p95']:.2f}"),
+        row(r"Mínimo / Máximo            ", lambda s: f"{s['min']:.2f} / {s['max']:.2f}"),
+        row(r"Horas con precio $\le 0$   ", lambda s: rf"{s['n_le0']} ({s['pct_le0']:.1f}\%)"),
         r"\bottomrule",
         r"\end{tabular}",
         r"\end{table}",
@@ -117,26 +133,29 @@ def save_stats_tex(stats_by_season: dict[str, dict], path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def plot_perfil_intradiario(dfs: dict[str, pd.DataFrame], out: Path) -> None:
-    fig, ax = plt.subplots(figsize=_FIGSIZE_WIDE)
+    fig, axes = plt.subplots(1, 2, figsize=_FIGSIZE_WIDE, sharey=True)
 
-    for key, df in dfs.items():
-        g = df.groupby("period")["price"]
-        mean = g.mean()
-        p10 = g.quantile(0.10)
-        p90 = g.quantile(0.90)
-        color = SEASONS[key]["color"]
+    for ax, (panel_title, keys) in zip(axes, _PANELS):
+        for key in keys:
+            df = dfs[key]
+            g = df.groupby("period")["price"]
+            mean = g.mean()
+            p10 = g.quantile(0.10)
+            p90 = g.quantile(0.90)
+            color = SEASONS[key]["color"]
 
-        ax.fill_between(mean.index, p10, p90, color=color, alpha=0.2)
-        ax.plot(mean.index, mean, color=color, linewidth=2, label=SEASONS[key]["label"])
+            ax.fill_between(mean.index, p10, p90, color=color, alpha=0.2)
+            ax.plot(mean.index, mean, color=color, linewidth=2, label=SEASONS[key]["label"])
 
-    ax.set_xlabel("Hora del día (periodo 1-24)", fontsize=11)
-    ax.set_ylabel("Precio (€/MWh)", fontsize=11)
-    ax.set_title("Perfil intradiario medio del precio, con banda P10-P90", fontsize=12)
-    ax.set_xticks(range(1, 25, 2))
-    ax.legend(fontsize=10)
-    ax.grid(alpha=0.3)
-    ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
+        ax.set_xlabel("Hora del día (periodo 1-24)", fontsize=11)
+        ax.set_title(panel_title, fontsize=11)
+        ax.set_xticks(range(1, 25, 2))
+        ax.legend(fontsize=10)
+        ax.grid(alpha=0.3)
+        ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
 
+    axes[0].set_ylabel("Precio (€/MWh)", fontsize=11)
+    fig.suptitle("Perfil intradiario medio del precio, con banda P10-P90", fontsize=12)
     fig.tight_layout()
     fig.savefig(out / "perfil_intradiario.pdf", dpi=_DPI)
     fig.savefig(out / "perfil_intradiario.png", dpi=_DPI)
@@ -148,23 +167,26 @@ def plot_perfil_intradiario(dfs: dict[str, pd.DataFrame], out: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def plot_distribucion_precios(dfs: dict[str, pd.DataFrame], out: Path) -> None:
-    fig, ax = plt.subplots(figsize=_FIGSIZE_STD)
+    fig, axes = plt.subplots(1, 2, figsize=_FIGSIZE_STD, sharex=True, sharey=True)
 
     all_prices = pd.concat([df["price"] for df in dfs.values()])
     bins = np.linspace(all_prices.min(), all_prices.max(), 60)
 
-    for key, df in dfs.items():
-        color = SEASONS[key]["color"]
-        ax.hist(df["price"], bins=bins, density=True, color=color, alpha=0.45,
-                label=SEASONS[key]["label"])
-        ax.axvline(df["price"].mean(), color=color, linewidth=1.5, linestyle="--")
+    for ax, (panel_title, keys) in zip(axes, _PANELS):
+        for key in keys:
+            df = dfs[key]
+            color = SEASONS[key]["color"]
+            ax.hist(df["price"], bins=bins, density=True, color=color, alpha=0.45,
+                    label=SEASONS[key]["label"])
+            ax.axvline(df["price"].mean(), color=color, linewidth=1.5, linestyle="--")
 
-    ax.set_xlabel("Precio (€/MWh)", fontsize=11)
-    ax.set_ylabel("Densidad", fontsize=11)
-    ax.set_title("Distribución del precio horario por tramo", fontsize=12)
-    ax.legend(fontsize=10)
-    ax.grid(alpha=0.3)
+        ax.set_xlabel("Precio (€/MWh)", fontsize=11)
+        ax.set_title(panel_title, fontsize=11)
+        ax.legend(fontsize=10)
+        ax.grid(alpha=0.3)
 
+    axes[0].set_ylabel("Densidad", fontsize=11)
+    fig.suptitle("Distribución del precio horario por tramo", fontsize=12)
     fig.tight_layout()
     fig.savefig(out / "distribucion_precios.pdf", dpi=_DPI)
     fig.savefig(out / "distribucion_precios.png", dpi=_DPI)
@@ -176,24 +198,27 @@ def plot_distribucion_precios(dfs: dict[str, pd.DataFrame], out: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def plot_volatilidad_diaria(dfs: dict[str, pd.DataFrame], out: Path) -> None:
-    fig, ax = plt.subplots(figsize=_FIGSIZE_WIDE)
+    fig, axes = plt.subplots(1, 2, figsize=_FIGSIZE_WIDE, sharey=True)
 
-    for key, df in dfs.items():
-        daily_std = df.groupby("date")["price"].std().sort_index()
-        color = SEASONS[key]["color"]
-        day_idx = np.arange(len(daily_std))
+    for ax, (panel_title, keys) in zip(axes, _PANELS):
+        for key in keys:
+            df = dfs[key]
+            daily_std = df.groupby("date")["price"].std().sort_index()
+            color = SEASONS[key]["color"]
+            day_idx = np.arange(len(daily_std))
 
-        ax.plot(day_idx, daily_std.values, color=color, linewidth=1.2, alpha=0.85,
-                label=f"{SEASONS[key]['label']} (std diaria)")
-        ax.axhline(daily_std.mean(), color=color, linewidth=1.5, linestyle="--",
-                   label=f"Media {SEASONS[key]['label']}: {daily_std.mean():.1f} €/MWh")
+            ax.plot(day_idx, daily_std.values, color=color, linewidth=1.2, alpha=0.85,
+                    label=f"{SEASONS[key]['label']} (std diaria)")
+            ax.axhline(daily_std.mean(), color=color, linewidth=1.5, linestyle="--",
+                       label=f"Media {SEASONS[key]['label']}: {daily_std.mean():.1f} €/MWh")
 
-    ax.set_xlabel("Día dentro del periodo", fontsize=11)
-    ax.set_ylabel("Desviación típica diaria del precio (€/MWh)", fontsize=11)
-    ax.set_title("Volatilidad diaria del precio por tramo", fontsize=12)
-    ax.legend(fontsize=9)
-    ax.grid(alpha=0.3)
+        ax.set_xlabel("Día dentro del periodo", fontsize=11)
+        ax.set_title(panel_title, fontsize=11)
+        ax.legend(fontsize=9)
+        ax.grid(alpha=0.3)
 
+    axes[0].set_ylabel("Desviación típica diaria del precio (€/MWh)", fontsize=11)
+    fig.suptitle("Volatilidad diaria del precio por tramo", fontsize=12)
     fig.tight_layout()
     fig.savefig(out / "volatilidad_diaria.pdf", dpi=_DPI)
     fig.savefig(out / "volatilidad_diaria.png", dpi=_DPI)
@@ -205,26 +230,25 @@ def plot_volatilidad_diaria(dfs: dict[str, pd.DataFrame], out: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def plot_correlacion_precio_renovable(dfs: dict[str, pd.DataFrame], out: Path) -> dict[str, float]:
-    fig, ax = plt.subplots(figsize=_FIGSIZE_STD)
+    fig, axes = plt.subplots(1, 2, figsize=_FIGSIZE_STD, sharex=True, sharey=True)
     correlaciones = {}
 
-    for key, df in dfs.items():
-        d = df.dropna(subset=["renewable_total_mwh"])
-        color = SEASONS[key]["color"]
-        ax.scatter(d["renewable_total_mwh"], d["price"], s=8, color=color, alpha=0.35,
-                   label=SEASONS[key]["label"])
-        r = d["renewable_total_mwh"].corr(d["price"])
-        correlaciones[key] = r
+    for ax, (panel_title, keys) in zip(axes, _PANELS):
+        for key in keys:
+            d = dfs[key].dropna(subset=["renewable_total_mwh"])
+            color = SEASONS[key]["color"]
+            r = d["renewable_total_mwh"].corr(d["price"])
+            correlaciones[key] = r
+            ax.scatter(d["renewable_total_mwh"], d["price"], s=8, color=color, alpha=0.35,
+                       label=f"{SEASONS[key]['label']} (r = {r:.2f})")
 
-    ax.set_xlabel("Generación renovable eólica + solar (MWh/h)", fontsize=11)
-    ax.set_ylabel("Precio (€/MWh)", fontsize=11)
-    ax.set_title("Relación entre el precio horario y la generación renovable", fontsize=12)
-    ax.legend(
-        [f"{SEASONS[k]['label']} (r = {correlaciones[k]:.2f})" for k in dfs],
-        fontsize=9,
-    )
-    ax.grid(alpha=0.3)
+        ax.set_xlabel("Generación renovable eólica + solar (MWh/h)", fontsize=11)
+        ax.set_title(panel_title, fontsize=11)
+        ax.legend(fontsize=9)
+        ax.grid(alpha=0.3)
 
+    axes[0].set_ylabel("Precio (€/MWh)", fontsize=11)
+    fig.suptitle("Relación entre el precio horario y la generación renovable", fontsize=12)
     fig.tight_layout()
     fig.savefig(out / "correlacion_precio_renovable.pdf", dpi=_DPI)
     fig.savefig(out / "correlacion_precio_renovable.png", dpi=_DPI)

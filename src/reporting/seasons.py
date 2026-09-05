@@ -8,9 +8,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .cli import _ensure_utf8_stdout, _tech_slug, evaluate_technology
-from .config import RunConfig, TechnologyConfig
-from .plots import plot_season_comparison
+from bidding.cli import _ensure_utf8_stdout, _tech_slug, evaluate_technology
+from bidding.config import RunConfig, TechnologyConfig
+from bidding.plots import plot_season_comparison
 
 
 def _season_label(cfg: RunConfig, run_path: str) -> str:
@@ -30,7 +30,7 @@ def evaluate_tech_seasons(tech_path: str, run_a_path: str, run_b_path: str) -> p
     for run_path in (run_a_path, run_b_path):
         cfg = RunConfig.from_yaml(run_path)
         np.random.seed(cfg.seed)
-        _, ranking, _ = evaluate_technology(tech, cfg)
+        _, ranking = evaluate_technology(tech, cfg)
         if ranking is None:
             continue
         tagged = ranking.copy()

@@ -6,9 +6,9 @@ import itertools
 
 import numpy as np
 
-from ..config import CandidateGrid, RiskObjective, TechnologyConfig
+from ..config import ResolvedGrid, RiskObjective, TechnologyConfig
 from ..metrics import compute_metrics, objective_value
-from .base import OrderStrategy
+from .base import OrderStrategy, block_avail_matrix
 
 
 class EXBOStrategy(OrderStrategy):
@@ -36,7 +36,7 @@ class EXBOStrategy(OrderStrategy):
         lambda_matrix: np.ndarray,
         avail_matrix: np.ndarray,
         probs: np.ndarray,
-        grid: CandidateGrid,
+        grid: ResolvedGrid,
         objective: RiskObjective,
         cvar_alpha: float,
         startup_per_transition: bool = False,  # unused: at most one block matches per day
@@ -54,11 +54,11 @@ class EXBOStrategy(OrderStrategy):
         best_obj = -np.inf
         best_result: dict | None = None
 
+        ref = tech.price_reference_value
         for group in tech.exbo_groups:
             blocks = group.blocks
             block_price_grids = [
-                b.price_levels if b.price_levels is not None else grid.price_levels
-                for b in blocks
+                b.resolved_price_levels(ref, grid.price_levels) for b in blocks
             ]
 
             for price_combo in itertools.product(*block_price_grids):
@@ -66,7 +66,7 @@ class EXBOStrategy(OrderStrategy):
                 welfare = np.zeros((len(blocks), S))
                 block_avail = np.zeros((len(blocks), S, T))
                 for i, (block, price) in enumerate(zip(blocks, price_combo)):
-                    avail_b = np.tile(np.asarray(block.availability.values, dtype=float), (S, 1))
+                    avail_b = block_avail_matrix(block, avail_matrix)
                     block_avail[i] = avail_b
                     revenue_b = np.sum(lambda_matrix * avail_b, axis=1)
                     welfare[i] = revenue_b - float(price) * avail_b.sum(axis=1)

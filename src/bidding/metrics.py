@@ -47,6 +47,11 @@ def expected_matched_energy(dispatch: np.ndarray, probs: np.ndarray) -> float:
     return float(probs @ dispatch.sum(axis=1))
 
 
+def expected_matched_periods(dispatch: np.ndarray, probs: np.ndarray) -> float:
+    """N̄ = Σ_s ρ_s · Σ_t 1[q_t^s > 0] — expected count of dispatched periods per day."""
+    return float(probs @ (dispatch > 0).sum(axis=1))
+
+
 def profit_per_mw(expected_profit_value: float, capacity_mw: float) -> float:
     """E[Π] normalised by installed capacity (€/MW/day).
 
@@ -73,6 +78,7 @@ def compute_metrics(
         "cvar": cvar(profits, probs, alpha),
         "match_probability": match_probability(matched, probs),
         "expected_matched_energy": expected_matched_energy(dispatch, probs),
+        "expected_matched_periods": expected_matched_periods(dispatch, probs),
         "expected_profit_per_mw": profit_per_mw(ep, capacity_mw),
     }
 

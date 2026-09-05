@@ -7,6 +7,8 @@ family: 1
 side: sell
 
 variable_cost: 0.0        # €/MWh — combustible nulo
+price_reference: 10.0     # €/MWh — referencia explicita para price_levels_pct
+                          # (obligatoria con variable_cost=0: los pct de coste 0 degeneran)
 startup_cost: 0.0         # € — sin coste de arranque
 technical_min: 0.0        # MWh — sin minimo tecnico
 
@@ -22,44 +24,57 @@ availability:
   source: renewable_csv
   resource: solar
   nameplate_capacity_mw: 100.0
+  # El agregado nacional ESIOS mantiene generacion solar residual en horas
+  # nocturnas (ruido de medida / termosolar), que dejaria ofertar cantidades
+  # minusculas de noche e inflaria las horas casadas esperadas (~22 h/dia).
+  # Filtro: horas con generacion < 5% del maximo de su dia se ponen a 0.
+  daily_min_generation_pct: 0.05
   values: [0, 0, 0, 0, 0, 0, 3, 12, 30, 52, 72, 88, 95, 92, 80, 62, 40, 18, 5, 0, 0, 0, 0, 0]
 
 # Grid centrado en C_V=0: queremos ofertar cerca de 0 para maximizar horas casadas.
+# price_levels_pct x price_reference=10 -> [-10, -1, 0, 1, 2, 5, 10, 20] €/MWh.
 # tf_levels=0 porque no hay coste de arranque.
 candidate_grid:
-  price_levels:        [-10, -1, 0, 1, 2, 5, 10, 20]
+  price_levels_pct:    [-1.0, -0.1, 0.0, 0.1, 0.2, 0.5, 1.0, 2.0]
   mar_levels:          [0.0, 0.3, 0.5, 0.8, 1.0]
   mav_fraction_levels: [0.0, 0.5, 0.8, 1.0]
   tf_levels:           [0]
 
 # EXBO: dos perfiles de bloque alternativos y mutuamente excluyentes (el
 # agente declara dos formas posibles de comprometer la planta; casa como
-# maximo una). Los perfiles de bloque son datos declarados (estaticos), no
-# se conectan al CSV de generacion real (ver limitacion en optimizer.py).
+# maximo una). source=tech_fraction: los values son FRACCIONES horarias de la
+# disponibilidad renovable real de cada dia (CSV ESIOS), de modo que la
+# cantidad declarada del bloque sigue el recurso del dia en vez de prometer
+# MW que no existen en dias de poca irradiancia.
 exbo_groups:
   - group_id: "solar_shape_choice"
     blocks:
       - id: "peak_block"          # solo horas centrales de mayor irradiancia
-        price_levels: [-10, -1, 0, 1, 2, 5]
+        price_levels_pct: [-1.0, -0.1, 0.0, 0.1, 0.2, 0.5]
         availability:
-          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 72, 88, 95, 92, 80, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+          source: tech_fraction
+          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
       - id: "broad_block"         # toda la ventana de luz solar
-        price_levels: [-10, -1, 0, 1, 2, 5]
+        price_levels_pct: [-1.0, -0.1, 0.0, 0.1, 0.2, 0.5]
         availability:
-          values: [0, 0, 0, 0, 0, 0, 3, 12, 30, 52, 72, 88, 95, 92, 80, 62, 40, 18, 5, 0, 0, 0, 0, 0]
+          source: tech_fraction
+          values: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 
-# LSBO: programa minimo (padre, ventana amplia) + paquete adicional opcional
-# de potencia en las horas de mayor irradiancia (hijo), que solo entra si es
-# rentable por si mismo.
+# LSBO: programa base (padre, 80% del recurso de cada hora) + paquete
+# adicional opcional en las horas de mayor irradiancia (hijo, el 20%
+# restante), que solo entra si es rentable por si mismo. Padre + hijo <= 1.0:
+# nunca se declara mas energia de la disponible ese dia.
 lsbo_families:
   - family_id: "solar_base_plus_peak"
     parent:
       id: "base"
-      price_levels: [-10, -1, 0, 1, 2, 5]
+      price_levels_pct: [-1.0, -0.1, 0.0, 0.1, 0.2, 0.5]
       availability:
-        values: [0, 0, 0, 0, 0, 0, 3, 12, 30, 52, 72, 88, 95, 92, 80, 62, 40, 18, 5, 0, 0, 0, 0, 0]
+        source: tech_fraction
+        values: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8]
     children:
       - id: "extra_peak"
-        price_levels: [-10, -1, 0, 1, 2, 5]
+        price_levels_pct: [-1.0, -0.1, 0.0, 0.1, 0.2, 0.5]
         availability:
-          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 20, 20, 20, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+          source: tech_fraction
+          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.2, 0.2, 0.2, 0.2, 0.2, 0, 0, 0, 0, 0, 0, 0, 0, 0]

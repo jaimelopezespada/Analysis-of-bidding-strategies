@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bidding"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.1",
+    "numpy>=1.26",
+    "matplotlib>=3.8",
+    "pydantic>=2.5",
+    "PyYAML>=6.0",
+    "pyomo>=6.7",
+    "highspy>=1.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "ruff>=0.1",
+    "black>=23",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: exercises the real winter/summer OMIE datasets end to end",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.black]
+line-length = 100
