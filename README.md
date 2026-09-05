@@ -23,8 +23,7 @@ pip install -e ".[dev]"
 
 Instala el paquete `bidding` en modo editable (ver `pyproject.toml`) más las
 dependencias de desarrollo (`pytest`, `ruff`, `black`). Las dependencias de
-producción son `pandas`, `numpy`, `matplotlib`, `pydantic`, `PyYAML`, `pyomo`
-y `highspy` (solver HiGHS, usado solo para el MILP de la SCO).
+producción son `pandas`, `numpy`, `matplotlib`, `pydantic`, `PyYAML` y  `pyomo`.
 
 ## Estructura del código
 
