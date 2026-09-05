@@ -1,4 +1,4 @@
-# bidding — Optimizador de estrategias de oferta en el mercado diario eléctrico
+# ANÁLISIS DE ESTRATEGIAS DE OFERTA PARA DIVERSAS TECNOLOGÍAS MEDIANTE EL USO DE BLOCK ORDERS, LINKED ORDERS, EXCLUSIVE BLOCK ORDERS Y SCALABLE COMPLEX ORDERS
 
 Modelo y código de soporte del TFM *"Analysis of bidding strategies for various
 technologies through the use of block orders, linked orders, exclusive block
