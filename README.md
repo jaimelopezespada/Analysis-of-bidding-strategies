@@ -3,8 +3,8 @@
 Modelo y código de soporte del TFM *"Analysis of bidding strategies for various
 technologies through the use of block orders, linked orders, exclusive block
 orders and scalable complex orders"*. Dada una tecnología (firma de
-restricciones técnico-económicas) y un conjunto de escenarios de precio, el
-optimizador compara los distintos tipos de orden del SDAC —oferta simple,
+restricciones técnico-económicas) y un conjunto de escenarios de precio, la herramienta
+compara los distintos tipos de orden del SDAC —oferta simple,
 orden compleja escalable (SCO), bloque simple (SBO), grupo exclusivo de
 bloques (EXBO) y bloques vinculados (LSBO)— y determina, para cada uno, los
 parámetros de oferta que maximizan `(1-β)·E[Π] + β·CVaR_α[Π]`.
@@ -41,8 +41,6 @@ src/bidding/            paquete principal
 │   ├── sbo.py                bloque simple — cerrado (welfare ≥ 0)
 │   ├── exbo.py                grupo exclusivo de bloques — cerrado (argmax welfare)
 │   └── lsbo.py                bloques vinculados — cerrado (regla padre-hijo)
-├── optimizer.py           construcción/resolución del MILP (Pyomo + HiGHS)
-│                          para SCO; único módulo que necesita un solver real
 ├── metrics.py              E[Π], CVaR_α, probabilidad de casar, energía esperada
 ├── ranking.py              ensambla la tabla comparativa de tipos de orden
 ├── frontier.py             barrido del parámetro de aversión al riesgo β
@@ -89,8 +87,7 @@ TFM_estructura.tex       memoria del TFM (LaTeX)
 `config.py` define **qué** se está modelando (tecnología + ejecución) →
 `prices.py`/`availability.py` cargan **con qué datos** (matrices `(S,T)`) →
 cada `orders/*.py` decide, para un tipo de orden, **cuánto se casa** dado un
-candidato de parámetros de oferta (usando `optimizer.py` solo si hace falta
-un MILP) → `metrics.py`/`ranking.py` resumen y comparan → `plots.py` grafica
+candidato de parámetros de oferta → `metrics.py`/`ranking.py` resumen y comparan → `plots.py` grafica
 → `cli.py` conecta todo con la línea de comandos.
 
 ## Formas de ejecutar
@@ -187,28 +184,7 @@ ahora `solar_fv.yaml` y `bateria.yaml`). `run_frontier_demo.yaml` activa
 `beta_sweep`, que genera además `frontier.csv` y la gráfica de la frontera
 beneficio-riesgo (E[Π] vs CVaR).
 
-### 5. Tests
-
-```bash
-pytest                    # suite completa
-pytest -m "not slow"      # excluye los tests que cargan los CSV reales de verano/invierno
-```
-
-### 6. Regenerar los datos de entrada (opcional)
-
-Los CSV de `data/` ya están versionados; solo hace falta volver a descargarlos
-si se quiere ampliar el rango de fechas. Requiere un token personal de la API
-de ESIOS:
-
-```python
-from data.precios_omie import obtener_precios_mercado_diario
-from data.generacion_renovable import ...  # ver docstrings de cada script
-```
-
-`data/generate_example.py` regenera el CSV sintético `example_omie.csv` usado
-en tests y en los YAML de demo (no requiere API key).
-
-### 7. EDA de la memoria
+### 6. EDA de la memoria
 
 ```bash
 python -m src.eda_data.eda
